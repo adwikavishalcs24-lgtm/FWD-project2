@@ -62,7 +62,6 @@ export const Dashboard = () => {
   }, [newsItems.length]);
 
   const handleEraClick = (era) => {
-    setCurrentEra(era);
     navigate(`/${era}`);
   };
 

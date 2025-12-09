@@ -5,6 +5,7 @@ import { Dashboard } from './pages/Dashboard';
 import { PastScreen, PresentScreen, FutureScreen } from './pages/EraScreens';
 import { MissionsPage, LeaderboardPage, SettingsPage } from './pages/UtilityPages';
 import { CollapseScreen, EndingScreen } from './pages/SpecialScreens';
+import { TimeMachine } from './pages/TimeMachine';
 import './styles/global.css';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
         <Route path="/past" element={<PastScreen />} />
         <Route path="/present" element={<PresentScreen />} />
         <Route path="/future" element={<FutureScreen />} />
+        <Route path="/timemachine" element={<TimeMachine />} />
         <Route path="/missions" element={<MissionsPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/settings" element={<SettingsPage />} />

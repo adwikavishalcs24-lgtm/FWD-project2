@@ -9,7 +9,7 @@ export const TopNavBar = ({ currentTab }) => {
 
   const tabs = [
     { label: 'Dashboard', path: '/dashboard', id: 'dashboard' },
-    { label: 'Upgrades', path: '/upgrades', id: 'upgrades' },
+    { label: 'Time Machine', path: '/timemachine', id: 'timemachine' },
     { label: 'Missions', path: '/missions', id: 'missions' },
     { label: 'Leaderboard', path: '/leaderboard', id: 'leaderboard' },
     { label: 'Settings', path: '/settings', id: 'settings' },

@@ -86,6 +86,9 @@ export const useGameStore = create((set) => ({
   completeUpgrade: (upgradeId) => set((state) => ({
     purchasedUpgrades: [...state.purchasedUpgrades, upgradeId],
   })),
+  purchaseUpgrade: (upgradeId) => set((state) => ({
+    purchasedUpgrades: [...state.purchasedUpgrades, upgradeId],
+  })),
   completeMission: (missionId) => set((state) => ({
     completedMissions: [...state.completedMissions, missionId],
   })),
