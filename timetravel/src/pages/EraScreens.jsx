@@ -26,6 +26,7 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
   
   const [selectedAction, setSelectedAction] = useState(null);
   const [selectedMiniGame, setSelectedMiniGame] = useState(null);
+  const [isMiniGameOpen, setIsMiniGameOpen] = useState(false);
   const [showMiniGames, setShowMiniGames] = useState(false);
   const [eventManager] = useState(() => new EventManager(useGameStore));
 
@@ -35,12 +36,15 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
   // Handle mini-game completion
   const handleMiniGameComplete = (timeline, gameId, score, rewards) => {
     console.log(`Mini-game completed: ${gameId} in ${timeline}`, { score, rewards });
+
+    setIsMiniGameOpen(false);
+    setSelectedMiniGame(null);
     // The game store's completeMiniGame method handles the state updates
   };
 
   // Render active mini-game
   const renderMiniGame = () => {
-    if (!selectedMiniGame) return null;
+    if (!isMiniGameOpen ||!selectedMiniGame) return null;
     
     const gameMeta = availableMiniGames.find(g => g.id === selectedMiniGame);
     if (!gameMeta) return null;
@@ -57,10 +61,14 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
           instructions={gameMeta.description}
           objective="Complete the mini-game to earn credits and resources"
           scoring="Score based on performance and efficiency"
+          duration={30}
           onComplete={handleMiniGameComplete}
         />
         <button
-          onClick={() => setSelectedMiniGame(null)}
+          onClick={() => {
+            setSelectedMiniGame(null);
+            setIsMiniGameOpen(false);
+          }}
           className="fixed top-4 right-4 z-60 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
         >
           ✕ Close Mini-Game
@@ -201,7 +209,10 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
                         key={game.id}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => setSelectedMiniGame(game.id)}
+                        onClick={() => {
+                          setSelectedMiniGame(game.id); 
+                          setIsMiniGameOpen(true);
+                        }}
                         className={`glass p-4 rounded-lg text-left w-full border-l-4 transition-all ${
                           isCompleted
                             ? 'border-success bg-success/10'
@@ -298,6 +309,7 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
                           className="w-full"
                           onClick={() => {
                             setSelectedMiniGame(game.id);
+                            setIsMiniGameOpen(true);
                           }}
                         >
                           {isCompleted ? 'PLAY AGAIN' : 'START GAME'}

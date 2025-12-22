@@ -7,7 +7,10 @@ export class MiniGameBase extends React.Component {
     this.state = {
       isActive: false,
       score: 0,
-      timeLeft: props.duration || 30,
+      timeLeft: 
+        typeof props.duration === 'number' && props.duration > 0 
+          ? props.duration
+          : 30,
       gameStarted: false,
       showInstructions: true,
     };
@@ -59,6 +62,9 @@ export class MiniGameBase extends React.Component {
   }
 
   endGame() {
+    if(!this.state.isActive) return;
+    
+    this.setState({ isActive: false });
     clearInterval(this.timer);
     clearInterval(this.gameTimer);
     

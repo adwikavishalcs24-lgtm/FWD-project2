@@ -4,8 +4,8 @@ import { authAPI, gameAPI, miniGameAPI, leaderboardAPI, userAPI, tokenUtils } fr
 
 export const useGameStore = create((set, get) => ({
   // Authentication state
-  isAuthenticated: false,
-  currentUser: null,
+  isAuthenticated: true,
+  currentUser: { id: 1, username: 'Agent Timeline', email: 'agent@timetravel.com' },
   authLoading: false,
   authError: null,
 

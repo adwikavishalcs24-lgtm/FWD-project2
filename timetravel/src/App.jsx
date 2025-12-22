@@ -2,7 +2,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useGameStore } from './store/gameStore';
-import AuthForm from './components/AuthForm';
 import { IntroScreen } from './pages/IntroScreen';
 import { Dashboard } from './pages/Dashboard';
 import { PastScreen, PresentScreen, FutureScreen } from './pages/EraScreens';
@@ -46,8 +45,6 @@ const LoadingScreen = () => {
 
 function App() {
   const { 
-    isAuthenticated, 
-    currentUser, 
     authLoading, 
     gameLoading,
     initializeAuth 
@@ -69,11 +66,6 @@ function App() {
   // Show loading screen while initializing
   if (authLoading || gameLoading) {
     return <LoadingScreen />;
-  }
-
-  // Show auth form if not authenticated
-  if (!isAuthenticated) {
-    return <AuthForm />;
   }
 
   // Show main game for authenticated users
