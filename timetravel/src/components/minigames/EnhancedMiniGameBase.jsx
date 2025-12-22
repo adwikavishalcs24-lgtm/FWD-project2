@@ -22,7 +22,10 @@ export const MiniGameBase = ({
   const [gameState, setGameState] = useState({
     isActive: false,
     score: 0,
-    timeLeft: duration,
+    timeLeft: 
+      typeof duration === 'number' && duration > 0
+        ? duration
+        : 30,
     gameStarted: false,
     showInstructions: true,
     combos: 0,
@@ -33,6 +36,7 @@ export const MiniGameBase = ({
 
   const [particles, setParticles] = useState([]);
   const [effects, setEffects] = useState([]);
+  const [showGameOver, setShowGameOver] = useState(false);
   const [comboMultiplier, setComboMultiplier] = useState(1);
   const [lastPerfectTime, setLastPerfectTime] = useState(0);
   const [gameStats, setGameStats] = useState({
@@ -44,6 +48,8 @@ export const MiniGameBase = ({
 
   const gameTimerRef = useRef(null);
   const gameLogicRef = useRef(null);
+  const hasEndedRef = useRef(false);
+
 
   // Initialize effects system
   const createParticle = (x, y, type = 'score') => {
@@ -107,41 +113,55 @@ export const MiniGameBase = ({
 
   // Start game
   const startGame = () => {
-    setGameState(prev => ({ 
-      ...prev, 
-      isActive: true, 
-      gameStarted: true, 
-      showInstructions: false 
+    setShowGameOver(false);
+    hasEndedRef.current = false;
+    
+    setGameState(prev => ({
+      ...prev,
+      timeLeft:
+        typeof duration === 'number' && duration > 0
+          ? duration
+          : 30,
+      isActive: true,
+      gameStarted: true,
+      showInstructions: false,
     }));
 
     // Start countdown timer
     gameTimerRef.current = setInterval(() => {
       setGameState(prev => {
+        if(!prev.isActive || !prev.gameStarted) return prev;
         const newTimeLeft = prev.timeLeft - 1;
-        if (newTimeLeft <= 0) {
-          endGame();
-          return { timeLeft: 0, isActive: false };
+        if(newTimeLeft <= 0){
+          setShowGameOver(true);
+          return {
+            ...prev,
+            timeLeft: 0,
+            isActive: false
+          };
         }
-        return { timeLeft: newTimeLeft };
+        return {
+          ...prev,
+          timeLeft: newTimeLeft
+        };
       });
     }, 1000);
 
     // Start game logic
-    if (gameLogicRef.current) {
-      gameLogicRef.current();
-    }
+    
   };
 
   // End game
   const endGame = async () => {
+   /* if (hasEndedRef.current) return;
+    hasEndedRef.current = true;
+
     clearInterval(gameTimerRef.current);
     gameTimerRef.current = null;
 
-    // Calculate enhanced rewards
     const rewards = calculateEnhancedRewards();
-    
+
     try {
-      // Submit to backend
       await submitMiniGameScore(timeline, title, gameState.score, {
         timeSpent: duration - gameState.timeLeft,
         attempts: 1,
@@ -150,13 +170,15 @@ export const MiniGameBase = ({
         maxCombo: gameStats.maxCombo,
         gameStats
       });
-      // completeMiniGame is called inside submitMiniGameScore on success
     } catch (error) {
-      console.error("Failed to submit score, completing locally:", error);
-      // Fallback: complete locally if server fails
-      completeMiniGame(timeline, title, gameState.score, rewards);
-    }
+      console.error('Failed to submit score, completeing locally:', error);
+      completeMiniGame(timeline, title, gameState.score,rewards);
+      
+    }*/
+   console.log("endGame called-disabled for now");
+    
   };
+      
 
   // Calculate enhanced rewards based on performance
   const calculateEnhancedRewards = () => {
@@ -228,6 +250,7 @@ export const MiniGameBase = ({
     return () => {
       if (gameTimerRef.current) {
         clearInterval(gameTimerRef.current);
+        gameTimerRef.current = null;
       }
     };
   }, []);
@@ -389,11 +412,27 @@ export const MiniGameBase = ({
           renderInstructions()
         ) : (
           renderGame()
-        )}
+        )};
+        
       </div>
+      {showGameOver && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <div className="bg-gray-900 p-6 rounded-lg text-center border border-gray-600">
+            <h2 className="text-3xl mb-4">Game Over</h2>
+            <p className="mb-6">Time's up!</p>
+            <button
+              onClick={() => setShowGameOver(false)}
+              className="bg-green-600 hover:bg-green-700 px-6 py-2 rounded font-bold"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
 
 // Export enhanced game store hook
 export const useEnhancedMiniGame = (timeline, gameId, title) => {
