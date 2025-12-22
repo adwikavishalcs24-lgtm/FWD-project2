@@ -412,7 +412,7 @@ export const MiniGameBase = ({
           renderInstructions()
         ) : (
           renderGame()
-        )};
+        )}
         
       </div>
       {showGameOver && (
