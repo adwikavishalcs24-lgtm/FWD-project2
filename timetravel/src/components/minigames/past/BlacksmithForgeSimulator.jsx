@@ -5,7 +5,10 @@ import { MiniGameBase } from '../EnhancedMiniGameBase';
 export const BlacksmithForgeSimulator = ({
   title = "Master Blacksmith's Forge",
   timeline = "past",
-  difficulty = "medium"
+  difficulty = "medium",
+  onComplete,
+  onClose,
+  gameId
 }) => {
   const [gameState, setGameState] = useState({
     temperature: 20,
@@ -312,7 +315,7 @@ export const BlacksmithForgeSimulator = ({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {metalInventory.map((metal, index) => (
               <div key={index} className={`bg-black/30 p-3 rounded-lg border ${metal.quality === 'rare' ? 'border-purple-500' :
-                  metal.quality === 'uncommon' ? 'border-blue-500' : 'border-gray-600'
+                metal.quality === 'uncommon' ? 'border-blue-500' : 'border-gray-600'
                 }`}>
                 <div className="text-xs text-gray-500 uppercase">{metal.quality}</div>
                 <div className="font-bold text-gray-200">{metal.type}</div>
@@ -340,11 +343,14 @@ export const BlacksmithForgeSimulator = ({
       ref={gameRef}
       title={title}
       timeline={timeline}
+      gameId={gameId}
       instructions={instructions}
       objective={objective}
       scoring={scoring}
       duration={60}
       difficulty={difficulty}
+      onComplete={onComplete}
+      onClose={onClose}
     >
       {renderForge()}
     </MiniGameBase>

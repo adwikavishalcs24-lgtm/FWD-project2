@@ -5,7 +5,10 @@ import { MiniGameBase } from '../EnhancedMiniGameBase';
 export const AncientClockmakerAlignment = ({
   title = "Ancient Clockmaker",
   timeline = "past",
-  difficulty = "medium"
+  difficulty = "medium",
+  onComplete,
+  onClose,
+  gameId
 }) => {
   const [gears, setGears] = useState([
     { id: 1, angle: 0, speed: 0, targetSpeed: 2, color: '#F59E0B', size: 100 },
@@ -127,16 +130,19 @@ export const AncientClockmakerAlignment = ({
       ref={gameRef}
       title={title}
       timeline={timeline}
+      gameId={gameId}
       instructions="Adjust the speed of each gear to match its Target Speed. When all gears are synchronized, the mechanism activates."
       objective="Synchronize all gears."
       scoring="Hold synchronization to accumulate points."
       duration={60}
       difficulty={difficulty}
+      onComplete={onComplete}
+      onClose={onClose}
     >
       <div className="w-full h-full flex flex-col items-center justify-center">
         <div className={`mb-8 px-6 py-2 rounded-full font-bold text-xl border-2 transition-colors duration-500 ${aligned
-            ? 'bg-green-900/50 border-green-500 text-green-400 shadow-[0_0_20px_rgba(16,185,129,0.5)]'
-            : 'bg-gray-900/50 border-gray-700 text-gray-500'
+          ? 'bg-green-900/50 border-green-500 text-green-400 shadow-[0_0_20px_rgba(16,185,129,0.5)]'
+          : 'bg-gray-900/50 border-gray-700 text-gray-500'
           }`}>
           {aligned ? "⚙️ MECHANISM SYNCHRONIZED" : "⚠️ GEARS MISALIGNED"}
         </div>

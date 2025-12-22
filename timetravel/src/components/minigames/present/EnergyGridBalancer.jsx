@@ -5,7 +5,10 @@ import { MiniGameBase } from '../EnhancedMiniGameBase';
 export const EnergyGridBalancer = ({
   title = "Grid Operator",
   timeline = "present",
-  difficulty = "medium"
+  difficulty = "medium",
+  onComplete,
+  onClose,
+  gameId
 }) => {
   const [demand, setDemand] = useState(500);
   const [supply, setSupply] = useState(500);
@@ -91,11 +94,14 @@ export const EnergyGridBalancer = ({
       ref={gameRef}
       title={title}
       timeline={timeline}
+      gameId={gameId}
       instructions="Match the Total Supply to the Grid Demand. Adjust power sources to keep the grid stable."
       objective="Maintain Grid Stability."
       scoring="Points awarded for time spent in Optimal state."
       duration={60}
       difficulty={difficulty}
+      onComplete={onComplete}
+      onClose={onClose}
     >
       <div className="w-full h-full flex flex-col p-4">
 

@@ -5,7 +5,10 @@ import { MiniGameBase } from '../EnhancedMiniGameBase';
 export const TimeRiftStabilizer = ({
   title = "Time Rift Stabilizer",
   timeline = "future",
-  difficulty = "hard"
+  difficulty = "hard",
+  onComplete,
+  onClose,
+  gameId
 }) => {
   const [riftStability, setRiftStability] = useState(50);
   const [frequencies, setFrequencies] = useState([
@@ -90,11 +93,14 @@ export const TimeRiftStabilizer = ({
       ref={gameRef}
       title={title}
       timeline={timeline}
+      gameId={gameId}
       instructions="Align the Containment Fields with the Flux Targets to stabilize the Time Rift."
       objective="Maintain Rift Stability."
       scoring="Score based on Resonance percentage."
       duration={60}
       difficulty={difficulty}
+      onComplete={onComplete}
+      onClose={onClose}
     >
       <div className="w-full h-full flex flex-col items-center justify-center p-4 relative overflow-hidden">
 

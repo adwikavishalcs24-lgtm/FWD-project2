@@ -15,7 +15,10 @@ const MORSE_CODE = {
 export const TelegraphMorseDecoder = ({
   title = "Telegraph Decoder",
   timeline = "past",
-  difficulty = "medium"
+  difficulty = "medium",
+  onComplete,
+  onClose,
+  gameId
 }) => {
   const [currentWord, setCurrentWord] = useState("STEAM");
   const [userInput, setUserInput] = useState("");
@@ -111,11 +114,14 @@ export const TelegraphMorseDecoder = ({
       ref={gameRef}
       title={title}
       timeline={timeline}
+      gameId={gameId}
       instructions="Translate the Morse Code signals into letters. Watch the highlighted sequence and type the word."
       objective="Decode as many words as possible."
       scoring="+100 points per correct word."
       duration={60}
       difficulty={difficulty}
+      onComplete={onComplete}
+      onClose={onClose}
     >
       <div className="w-full h-full flex flex-col items-center justify-center p-4">
 

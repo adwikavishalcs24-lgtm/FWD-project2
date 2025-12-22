@@ -5,7 +5,10 @@ import { MiniGameBase } from '../EnhancedMiniGameBase';
 export const TrafficSignalController = ({
   title = "Smart Traffic Control System",
   timeline = "present",
-  difficulty = "medium"
+  difficulty = "medium",
+  onComplete,
+  onClose,
+  gameId
 }) => {
   const [gameState, setGameState] = useState({
     intersections: [],
@@ -523,11 +526,14 @@ export const TrafficSignalController = ({
       ref={gameRef}
       title={title}
       timeline={timeline}
+      gameId={gameId}
       instructions={instructions}
       objective={objective}
       scoring={scoring}
       duration={75}
       difficulty={difficulty}
+      onComplete={onComplete}
+      onClose={onClose}
     >
       <div className="traffic-control-container flex flex-col h-full overflow-y-auto">
         {renderTrafficNetwork()}

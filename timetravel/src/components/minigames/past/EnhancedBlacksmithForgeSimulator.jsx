@@ -5,7 +5,10 @@ import { MiniGameBase } from '../EnhancedMiniGameBase';
 export const EnhancedBlacksmithForgeSimulator = ({
   title = "Master Blacksmith's Forge",
   timeline = "past",
-  difficulty = "medium"
+  difficulty = "medium",
+  onComplete,
+  onClose,
+  gameId
 }) => {
   const [gameState, setGameState] = useState({
     temperature: 20,
@@ -43,7 +46,7 @@ export const EnhancedBlacksmithForgeSimulator = ({
   const generateForgeSequence = useCallback(() => {
     const difficulty_multiplier = { easy: 1, medium: 1.5, hard: 2 }[difficulty];
     const sequenceLength = Math.floor(3 + Math.random() * 3 * difficulty_multiplier);
-    
+
     return Array.from({ length: sequenceLength }, (_, i) => ({
       id: i,
       targetTemp: Math.floor(40 + Math.random() * 40),
@@ -63,7 +66,7 @@ export const EnhancedBlacksmithForgeSimulator = ({
       life: 1,
       color: getTemperatureColor(gameState.temperature)
     };
-    
+
     setGameState(prev => ({
       ...prev,
       forgeParticles: [...prev.forgeParticles, particle]
@@ -92,19 +95,19 @@ export const EnhancedBlacksmithForgeSimulator = ({
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    
+
     setGameState(prev => ({ ...prev, isHammering: true }));
     setTimeout(() => setGameState(prev => ({ ...prev, isHammering: false })), 150);
-    
+
     addForgeParticle(x + 50, y + 30, 'strike');
-    
+
     const zone = getTemperatureZone(gameState.temperature);
     const now = Date.now();
     const timeSinceLastAction = now - lastAction.timestamp;
-    
+
     let points = 0;
     let actionType = 'miss';
-    
+
     if (zone === 'perfect' && timeSinceLastAction < 2000) {
       points = 10 + (comboStreak * 2);
       actionType = 'perfect';
@@ -123,9 +126,9 @@ export const EnhancedBlacksmithForgeSimulator = ({
       actionType = 'miss';
       setComboStreak(0);
     }
-    
+
     setLastAction({ type: actionType, timestamp: now });
-    
+
     // Visual feedback
     if (actionType === 'perfect') {
       addForgeParticle(x, y, 'perfect');
@@ -134,7 +137,7 @@ export const EnhancedBlacksmithForgeSimulator = ({
       addForgeParticle(x, y, 'disaster');
       playHammerSound('disaster');
     }
-    
+
     return { points, actionType, x, y };
   };
 
@@ -155,17 +158,17 @@ export const EnhancedBlacksmithForgeSimulator = ({
       medium: { common: 60, uncommon: 30, rare: 10 },
       hard: { common: 40, uncommon: 40, rare: 20 }
     };
-    
+
     const weights = quality_weights[difficulty];
     const rand = Math.random() * 100;
-    
+
     let quality = 'common';
     if (rand < weights.rare) quality = 'rare';
     else if (rand < weights.rare + weights.uncommon) quality = 'uncommon';
-    
+
     const metal_types = ['Iron', 'Steel', 'Mithril', 'Adamantite', 'Orichalcum'];
     const metal_type = metal_types[Math.floor(Math.random() * metal_types.length)];
-    
+
     return {
       id: Date.now() + Math.random(),
       type: metal_type,
@@ -182,19 +185,19 @@ export const EnhancedBlacksmithForgeSimulator = ({
       setGameState(prev => {
         // Natural cooling
         let newTemp = Math.max(10, prev.temperature - 1);
-        
+
         // Temperature fluctuations
         if (Math.random() < 0.3) {
           newTemp += Math.floor((Math.random() - 0.5) * 6);
         }
-        
+
         // Auto-heat if forge level is high
         if (prev.forgeLevel > 1 && Math.random() < 0.2) {
           newTemp += prev.forgeLevel * 0.5;
         }
-        
+
         newTemp = Math.max(0, Math.min(100, newTemp));
-        
+
         // Update particles
         const updatedParticles = prev.forgeParticles
           .map(p => ({
@@ -205,7 +208,7 @@ export const EnhancedBlacksmithForgeSimulator = ({
             vy: p.vy + 0.1
           }))
           .filter(p => p.life > 0);
-        
+
         return {
           ...prev,
           temperature: newTemp,
@@ -220,7 +223,7 @@ export const EnhancedBlacksmithForgeSimulator = ({
   const renderForge = () => {
     const zone = getTemperatureZone(gameState.temperature);
     const zone_color = gameState.heatZones[zone]?.color || '#3B82F6';
-    
+
     return (
       <div className="forge-container">
         <div className="forge-interface">
@@ -230,19 +233,19 @@ export const EnhancedBlacksmithForgeSimulator = ({
             <div className="temp-display-enhanced">
               <div className="temp-number">{Math.round(gameState.temperature)}°C</div>
               <div className="temp-bar-container">
-                <div 
+                <div
                   className="temp-bar-fill"
-                  style={{ 
+                  style={{
                     width: `${gameState.temperature}%`,
                     backgroundColor: zone_color
                   }}
                 />
                 <div className="temp-zones">
                   {Object.entries(gameState.heatZones).map(([zoneName, data]) => (
-                    <div 
+                    <div
                       key={zoneName}
                       className={`temp-zone ${zoneName} ${zone === zoneName ? 'active' : ''}`}
-                      style={{ 
+                      style={{
                         left: `${data.min}%`,
                         width: `${data.max - data.min}%`,
                         backgroundColor: data.color
@@ -253,16 +256,16 @@ export const EnhancedBlacksmithForgeSimulator = ({
               </div>
               <div className="temp-zone-label">{zone.toUpperCase()}</div>
             </div>
-            
+
             {/* Heat Controls */}
             <div className="heat-controls">
-              <button 
+              <button
                 className="heat-btn increase"
                 onClick={() => setGameState(prev => ({ ...prev, temperature: Math.min(100, prev.temperature + 5) }))}
               >
                 + Increase Heat
               </button>
-              <button 
+              <button
                 className="heat-btn decrease"
                 onClick={() => setGameState(prev => ({ ...prev, temperature: Math.max(0, prev.temperature - 5) }))}
               >
@@ -284,7 +287,7 @@ export const EnhancedBlacksmithForgeSimulator = ({
                 <div className="anvil-face" />
                 <div className="anvil-horn" />
               </div>
-              
+
               {/* Hammer Strike Area */}
               <button
                 className={`hammer-strike-area ${gameState.isHammering ? 'hammering' : ''}`}
@@ -295,10 +298,10 @@ export const EnhancedBlacksmithForgeSimulator = ({
                 <div className="hammer-emoji">🔨</div>
                 <div className="strike-zone">
                   {forgeSequence.map((step, index) => (
-                    <div 
+                    <div
                       key={step.id}
                       className={`forge-step ${index === 0 ? 'current' : ''}`}
-                      style={{ 
+                      style={{
                         left: `${index * 20}px`,
                         backgroundColor: getTemperatureColor(step.targetTemp)
                       }}
@@ -424,11 +427,14 @@ export const EnhancedBlacksmithForgeSimulator = ({
     <MiniGameBase
       title={title}
       timeline={timeline}
+      gameId={gameId}
       instructions={instructions}
       objective={objective}
       scoring={scoring}
       duration={60}
       difficulty={difficulty}
+      onComplete={onComplete}
+      onClose={onClose}
     >
       {renderForge()}
     </MiniGameBase>

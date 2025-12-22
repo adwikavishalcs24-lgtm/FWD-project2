@@ -5,7 +5,10 @@ import { MiniGameBase } from '../EnhancedMiniGameBase';
 export const AIDefenseMatrix = ({
   title = "AI Defense Network",
   timeline = "future",
-  difficulty = "hard"
+  difficulty = "hard",
+  onComplete,
+  onClose,
+  gameId
 }) => {
   const [gameState, setGameState] = useState({
     grid: [],
@@ -245,11 +248,14 @@ export const AIDefenseMatrix = ({
       ref={gameRef}
       title={title}
       timeline={timeline}
+      gameId={gameId}
       instructions={instructions}
       objective={objective}
       scoring={scoring}
       duration={60}
       difficulty={difficulty}
+      onComplete={onComplete}
+      onClose={onClose}
     >
       <div className="flex flex-col items-center h-full">
         {/* HUD */}

@@ -5,7 +5,10 @@ import { MiniGameBase } from '../EnhancedMiniGameBase';
 export const SteamEnginePressureControl = ({
   title = "Steam Engine Pressure Control",
   timeline = "past",
-  difficulty = "medium"
+  difficulty = "medium",
+  onComplete,
+  onClose,
+  gameId
 }) => {
   const [pressure, setPressure] = useState(50);
   const [valves, setValves] = useState([false, false, false]); // 3 valves
@@ -200,11 +203,14 @@ export const SteamEnginePressureControl = ({
       ref={gameRef}
       title={title}
       timeline={timeline}
+      gameId={gameId}
       instructions={instructions}
       objective={objective}
       scoring={scoring}
       duration={60}
       difficulty={difficulty}
+      onComplete={onComplete}
+      onClose={onClose}
     >
       {renderGame()}
     </MiniGameBase>

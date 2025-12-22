@@ -5,7 +5,10 @@ import { MiniGameBase } from '../EnhancedMiniGameBase';
 export const EnhancedAIDefenseMatrix = ({
   title = "AI Defense Matrix",
   timeline = "future",
-  difficulty = "medium"
+  difficulty = "medium",
+  onComplete,
+  onClose,
+  gameId
 }) => {
   const [gameState, setGameState] = useState({
     defenseNodes: [],
@@ -41,7 +44,7 @@ export const EnhancedAIDefenseMatrix = ({
     const initializeNetwork = () => {
       const nodeCount = { easy: 8, medium: 12, hard: 16 }[difficulty];
       const nodes = [];
-      
+
       for (let i = 0; i < nodeCount; i++) {
         nodes.push({
           id: i,
@@ -55,7 +58,7 @@ export const EnhancedAIDefenseMatrix = ({
           cooldown: 0
         });
       }
-      
+
       // Create connections between nearby nodes
       nodes.forEach((node, i) => {
         nodes.forEach((otherNode, j) => {
@@ -69,10 +72,10 @@ export const EnhancedAIDefenseMatrix = ({
           }
         });
       });
-      
+
       setGameState(prev => ({ ...prev, defenseNodes: nodes }));
     };
-    
+
     initializeNetwork();
   }, [difficulty]);
 
@@ -80,16 +83,16 @@ export const EnhancedAIDefenseMatrix = ({
   const generateThreat = useCallback(() => {
     const threatTypes = [
       'data_corruption',
-      'memory_injection', 
+      'memory_injection',
       'network_spoofing',
       'quantum_tunneling',
       'ai_infiltration',
       'system_hijack'
     ];
-    
+
     const threatType = threatTypes[Math.floor(Math.random() * threatTypes.length)];
     const severity = Math.floor(1 + Math.random() * gameState.threatLevel);
-    
+
     const threat = {
       id: Date.now() + Math.random(),
       type: threatType,
@@ -99,12 +102,12 @@ export const EnhancedAIDefenseMatrix = ({
       active: false,
       signature: Math.random().toString(36).substring(7)
     };
-    
+
     setGameState(prev => ({
       ...prev,
       rogueNodes: [...prev.rogueNodes, threat]
     }));
-    
+
     setThreatLog(prev => [...prev.slice(-9), {
       timestamp: new Date().toLocaleTimeString(),
       threat: threatType,
@@ -117,14 +120,14 @@ export const EnhancedAIDefenseMatrix = ({
   const deployProtection = (nodeId, protectionType) => {
     const node = gameState.defenseNodes.find(n => n.id === nodeId);
     if (!node || node.cooldown > 0) return;
-    
+
     setGameState(prev => {
-      const newNodes = prev.defenseNodes.map(n => 
-        n.id === nodeId 
+      const newNodes = prev.defenseNodes.map(n =>
+        n.id === nodeId
           ? { ...n, cooldown: 30, status: 'active' }
           : n
       );
-      
+
       const newProtections = [...prev.activeProtections, {
         id: Date.now() + Math.random(),
         type: protectionType,
@@ -132,7 +135,7 @@ export const EnhancedAIDefenseMatrix = ({
         duration: 20,
         effectiveness: 0.9
       }];
-      
+
       return {
         ...prev,
         defenseNodes: newNodes,
@@ -145,51 +148,51 @@ export const EnhancedAIDefenseMatrix = ({
   const neutralizeThreat = (threatId) => {
     const threat = gameState.rogueNodes.find(t => t.id === threatId);
     if (!threat) return;
-    
-    const nearbyNodes = gameState.defenseNodes.filter(node => 
-      node.status === 'active' && 
+
+    const nearbyNodes = gameState.defenseNodes.filter(node =>
+      node.status === 'active' &&
       Math.sqrt(
         Math.pow(node.x - gameState.defenseNodes[threat.targetNode].x, 2) +
         Math.pow(node.y - gameState.defenseNodes[threat.targetNode].y, 2)
       ) < 40
     );
-    
+
     if (nearbyNodes.length === 0) return false;
-    
+
     // Find best response time
     const startTime = Date.now();
-    const bestNode = nearbyNodes.reduce((best, node) => 
+    const bestNode = nearbyNodes.reduce((best, node) =>
       node.threatDetection > best.threatDetection ? node : best
     );
-    
+
     // Calculate effectiveness based on network load and node health
     const networkEfficiency = Math.max(0.1, 1 - (gameState.systemLoad / 200));
     const nodeEfficiency = bestNode.power / 100;
     const threatResistance = 1 - (threat.severity * 0.2);
-    
+
     const successRate = networkEfficiency * nodeEfficiency * threatResistance;
     const success = Math.random() < successRate;
-    
+
     setPerformanceMetrics(prev => ({
       ...prev,
       threatsNeutralized: success ? prev.threatsNeutralized + 1 : prev.threatsNeutralized,
       responseTime: Date.now() - startTime,
       efficiency: Math.min(100, prev.efficiency + (success ? 2 : -1))
     }));
-    
+
     if (success) {
       setGameState(prev => ({
         ...prev,
         rogueNodes: prev.rogueNodes.filter(t => t.id !== threatId),
         systemLoad: Math.max(0, prev.systemLoad - 5)
       }));
-      
+
       setSystemAlerts(prev => [...prev.slice(-2), {
         type: 'success',
         message: `Threat ${threat.type} neutralized successfully`,
         timestamp: Date.now()
       }]);
-      
+
       return true;
     } else {
       setGameState(prev => ({
@@ -197,13 +200,13 @@ export const EnhancedAIDefenseMatrix = ({
         firewallIntegrity: Math.max(0, prev.firewallIntegrity - threat.severity * 5),
         systemLoad: Math.min(100, prev.systemLoad + 10)
       }));
-      
+
       setSystemAlerts(prev => [...prev.slice(-2), {
         type: 'error',
         message: `Failed to neutralize ${threat.type}`,
         timestamp: Date.now()
       }]);
-      
+
       return false;
     }
   };
@@ -213,14 +216,14 @@ export const EnhancedAIDefenseMatrix = ({
     gameLoopRef.current = setInterval(() => {
       setGameState(prev => {
         const newState = { ...prev };
-        
+
         // Update node cooldowns
         newState.defenseNodes = prev.defenseNodes.map(node => ({
           ...node,
           cooldown: Math.max(0, node.cooldown - 1),
           power: Math.min(100, node.power + 0.5)
         }));
-        
+
         // Update active protections
         newState.activeProtections = prev.activeProtections
           .map(protection => ({
@@ -228,7 +231,7 @@ export const EnhancedAIDefenseMatrix = ({
             duration: protection.duration - 1
           }))
           .filter(protection => protection.duration > 0);
-        
+
         // Process threats
         const currentTime = Date.now();
         newState.rogueNodes = prev.rogueNodes.map(threat => {
@@ -240,16 +243,16 @@ export const EnhancedAIDefenseMatrix = ({
               firewallIntegrity: Math.max(0, current.firewallIntegrity - threat.severity * 3),
               systemLoad: Math.min(100, current.systemLoad + threat.severity * 2)
             }));
-            
+
             return { ...threat, active: true };
           }
           return threat;
         });
-        
+
         // Auto-neutralize active threats if protection is active
         newState.rogueNodes.forEach(threat => {
           if (threat.active) {
-            const hasProtection = prev.activeProtections.some(p => 
+            const hasProtection = prev.activeProtections.some(p =>
               Math.abs(p.nodeId - threat.targetNode) < 2
             );
             if (hasProtection && Math.random() < 0.1) {
@@ -257,11 +260,11 @@ export const EnhancedAIDefenseMatrix = ({
             }
           }
         });
-        
+
         return newState;
       });
     }, 100);
-    
+
     return () => clearInterval(gameLoopRef.current);
   }, []);
 
@@ -272,13 +275,13 @@ export const EnhancedAIDefenseMatrix = ({
         generateThreat();
       }
     }, 2000);
-    
+
     return () => clearInterval(threatSpawnerRef.current);
   }, [generateThreat]);
 
   const renderNetworkVisualization = () => {
     const { defenseNodes, rogueNodes, activeProtections } = gameState;
-    
+
     return (
       <div className="network-visualization">
         <div className="network-grid">
@@ -286,20 +289,20 @@ export const EnhancedAIDefenseMatrix = ({
             {/* Network connections */}
             <defs>
               <filter id="glow">
-                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                <feMerge> 
-                  <feMergeNode in="coloredBlur"/>
-                  <feMergeNode in="SourceGraphic"/>
+                <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+                <feMerge>
+                  <feMergeNode in="coloredBlur" />
+                  <feMergeNode in="SourceGraphic" />
                 </feMerge>
               </filter>
             </defs>
-            
+
             {/* Connection lines */}
-            {defenseNodes.map(node => 
+            {defenseNodes.map(node =>
               node.connections.map(targetId => {
                 const targetNode = defenseNodes.find(n => n.id === targetId);
                 if (!targetNode) return null;
-                
+
                 return (
                   <line
                     key={`${node.id}-${targetId}`}
@@ -314,7 +317,7 @@ export const EnhancedAIDefenseMatrix = ({
                 );
               })
             )}
-            
+
             {/* Defense nodes */}
             {defenseNodes.map(node => (
               <g key={node.id}>
@@ -322,15 +325,15 @@ export const EnhancedAIDefenseMatrix = ({
                   cx={node.x}
                   cy={node.y}
                   r="3"
-                  fill={node.status === 'active' ? '#00ff88' : 
-                        node.status === 'infected' ? '#ff4444' : '#ffaa00'}
+                  fill={node.status === 'active' ? '#00ff88' :
+                    node.status === 'infected' ? '#ff4444' : '#ffaa00'}
                   stroke="#fff"
                   strokeWidth="0.2"
                   filter="url(#glow)"
                   className="defense-node"
                   onClick={() => deployProtection(node.id, node.type)}
                 />
-                
+
                 {/* Node power indicator */}
                 <circle
                   cx={node.x}
@@ -341,7 +344,7 @@ export const EnhancedAIDefenseMatrix = ({
                   strokeWidth="0.1"
                   opacity="0.5"
                 />
-                
+
                 {/* Cooldown indicator */}
                 {node.cooldown > 0 && (
                   <circle
@@ -357,12 +360,12 @@ export const EnhancedAIDefenseMatrix = ({
                 )}
               </g>
             ))}
-            
+
             {/* Rogue threats */}
             {rogueNodes.map(threat => {
               const targetNode = defenseNodes.find(n => n.id === threat.targetNode);
               if (!targetNode) return null;
-              
+
               return (
                 <g key={threat.id}>
                   <circle
@@ -374,7 +377,7 @@ export const EnhancedAIDefenseMatrix = ({
                     className="threat-indicator"
                     onClick={() => neutralizeThreat(threat.id)}
                   />
-                  
+
                   {/* Threat severity rings */}
                   {[...Array(threat.severity)].map((_, i) => (
                     <circle
@@ -392,12 +395,12 @@ export const EnhancedAIDefenseMatrix = ({
                 </g>
               );
             })}
-            
+
             {/* Active protections */}
             {activeProtections.map(protection => {
               const node = defenseNodes.find(n => n.id === protection.nodeId);
               if (!node) return null;
-              
+
               return (
                 <circle
                   key={protection.id}
@@ -414,7 +417,7 @@ export const EnhancedAIDefenseMatrix = ({
             })}
           </svg>
         </div>
-        
+
         {/* Network statistics */}
         <div className="network-stats">
           <div className="stat-panel">
@@ -472,8 +475,8 @@ export const EnhancedAIDefenseMatrix = ({
       {systemAlerts.map((alert, index) => (
         <div key={index} className={`alert alert-${alert.type}`}>
           <span className="alert-icon">
-            {alert.type === 'success' ? '✅' : 
-             alert.type === 'error' ? '❌' : '⚠️'}
+            {alert.type === 'success' ? '✅' :
+              alert.type === 'error' ? '❌' : '⚠️'}
           </span>
           <span className="alert-message">{alert.message}</span>
         </div>
@@ -522,11 +525,14 @@ export const EnhancedAIDefenseMatrix = ({
     <MiniGameBase
       title={title}
       timeline={timeline}
+      gameId={gameId}
       instructions={instructions}
       objective={objective}
       scoring={scoring}
       duration={90}
       difficulty={difficulty}
+      onComplete={onComplete}
+      onClose={onClose}
     >
       <div className="ai-defense-container">
         {renderSystemAlerts()}

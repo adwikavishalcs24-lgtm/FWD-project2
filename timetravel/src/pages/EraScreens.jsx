@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -10,20 +11,21 @@ import EventManager from '../data/randomEvents';
 
 const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => {
   const navigate = useNavigate();
-  const { 
-    credits, 
-    energy, 
-    stability, 
-    timelineStability, 
-    miniGameScores, 
+  const {
+    credits,
+    energy,
+    stability,
+    timelineStability,
+    miniGameScores,
     completedMiniGames,
     eventActive,
     currentEvent,
     triggerRandomEvent,
     resolveEvent,
-    closeEvent
+    closeEvent,
+    startMiniGame // Added: Destructure startMiniGame from store
   } = useGameStore();
-  
+
   const [selectedAction, setSelectedAction] = useState(null);
   const [selectedMiniGame, setSelectedMiniGame] = useState(null);
   const [isMiniGameOpen, setIsMiniGameOpen] = useState(false);
@@ -42,15 +44,54 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
     // The game store's completeMiniGame method handles the state updates
   };
 
+  // Handle Mission Acceptance
+  const handleMissionAccept = (mission) => {
+    console.log("Accepted Mission:", mission);
+    if (mission.gameId) {
+      // 1. Update Global State
+      if (startMiniGame) startMiniGame(mission.gameId);
+
+      // 2. Update Local UI State to render the game
+      setSelectedMiniGame(mission.gameId);
+      setIsMiniGameOpen(true);
+    } else {
+      console.warn("Mission missing gameId mapping", mission);
+    }
+  };
+
   // Render active mini-game
   const renderMiniGame = () => {
-    if (!isMiniGameOpen ||!selectedMiniGame) return null;
-    
-    const gameMeta = availableMiniGames.find(g => g.id === selectedMiniGame);
+    if (!isMiniGameOpen || !selectedMiniGame) return null;
+
+    // Find metadata either from available games OR explicitly look it up if it's from a mission mapping
+    // We search in the current era's metadata
+    let gameMeta = availableMiniGames.find(g => g.id === selectedMiniGame);
+
+    // If not found (edge case), try searching all metadata
+    if (!gameMeta) {
+      Object.values(miniGameMetadata).forEach(games => {
+        const found = games.find(g => g.id === selectedMiniGame);
+        if (found) gameMeta = found;
+      });
+    }
+
     if (!gameMeta) return null;
-    
+
     const GameComponent = getMiniGameComponent(era, selectedMiniGame);
     if (!GameComponent) return null;
+
+    // Handler to close the mini-game
+    const handleClose = () => {
+      console.log("Closing mini-game...");
+      // Force immediate close
+      setIsMiniGameOpen(false);
+      setSelectedMiniGame(null);
+      // Also ensure any game state is cleared
+      setTimeout(() => {
+        setIsMiniGameOpen(false);
+        setSelectedMiniGame(null);
+      }, 0);
+    };
 
     return (
       <div className="fixed inset-0 z-50 bg-black bg-opacity-90 overflow-auto">
@@ -61,14 +102,12 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
           instructions={gameMeta.description}
           objective="Complete the mini-game to earn credits and resources"
           scoring="Score based on performance and efficiency"
-          duration={30}
+          duration={60}
           onComplete={handleMiniGameComplete}
+          onClose={handleClose}
         />
         <button
-          onClick={() => {
-            setSelectedMiniGame(null);
-            setIsMiniGameOpen(false);
-          }}
+          onClick={handleClose}
           className="fixed top-4 right-4 z-60 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
         >
           ✕ Close Mini-Game
@@ -86,7 +125,7 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
         <div className="bg-gray-900 border-2 border-accent rounded-lg p-6 max-w-2xl w-full mx-4">
           <h2 className="text-2xl font-bold text-accent mb-4">{currentEvent.title}</h2>
           <p className="text-gray-300 mb-6">{currentEvent.description}</p>
-          
+
           <div className="space-y-3">
             {currentEvent.choices.map((choice, index) => (
               <button
@@ -100,7 +139,7 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
                 <div className="font-bold text-accent">{choice.text}</div>
                 {choice.effects && (
                   <div className="text-sm text-gray-400 mt-1">
-                    Effects: {Object.entries(choice.effects).map(([key, value]) => 
+                    Effects: {Object.entries(choice.effects).map(([key, value]) =>
                       `${key}: ${value > 0 ? '+' : ''}${value}`
                     ).join(', ')}
                   </div>
@@ -130,9 +169,9 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
           <div className="text-6xl mb-4">{icon}</div>
           <h1 className="font-title text-5xl text-accent mb-2">{title}</h1>
           <p className="text-gray-300 max-w-2xl mx-auto">
-            {era === 'past' ? 'Travel back in time and restore historical stability' : 
-             era === 'present' ? 'Manage the current timeline and contemporary challenges' : 
-             'Shape the future and control technological evolution'}
+            {era === 'past' ? 'Travel back in time and restore historical stability' :
+              era === 'present' ? 'Manage the current timeline and contemporary challenges' :
+                'Shape the future and control technological evolution'}
           </p>
         </motion.div>
 
@@ -141,21 +180,19 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
           <div className="glass p-1 rounded-lg">
             <button
               onClick={() => setShowMiniGames(false)}
-              className={`px-6 py-2 rounded transition-all ${
-                !showMiniGames 
-                  ? 'bg-accent text-dark font-bold' 
-                  : 'text-gray-400 hover:text-white'
-              }`}
+              className={`px-6 py-2 rounded transition-all ${!showMiniGames
+                ? 'bg-accent text-dark font-bold'
+                : 'text-gray-400 hover:text-white'
+                }`}
             >
               🏗️ Build Actions
             </button>
             <button
               onClick={() => setShowMiniGames(true)}
-              className={`px-6 py-2 rounded transition-all ${
-                showMiniGames 
-                  ? 'bg-accent text-dark font-bold' 
-                  : 'text-gray-400 hover:text-white'
-              }`}
+              className={`px-6 py-2 rounded transition-all ${showMiniGames
+                ? 'bg-accent text-dark font-bold'
+                : 'text-gray-400 hover:text-white'
+                }`}
             >
               🎮 Mini-Games
             </button>
@@ -181,11 +218,10 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setSelectedAction(action)}
-                      className={`glass p-4 rounded-lg text-left w-full border-l-4 transition-all ${
-                        selectedAction?.id === action.id
-                          ? 'border-accent bg-accent/10 neon-glow-accent'
-                          : 'border-primary/30'
-                      }`}
+                      className={`glass p-4 rounded-lg text-left w-full border-l-4 transition-all ${selectedAction?.id === action.id
+                        ? 'border-accent bg-accent/10 neon-glow-accent'
+                        : 'border-primary/30'
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="font-title text-accent text-lg">{action.icon} {action.title}</h3>
@@ -203,30 +239,28 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
                   {availableMiniGames.map((game) => {
                     const isCompleted = completedMiniGames[era]?.includes(game.id);
                     const score = miniGameScores[era]?.[game.id] || 0;
-                    
+
                     return (
                       <motion.button
                         key={game.id}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => {
-                          setSelectedMiniGame(game.id); 
+                          setSelectedMiniGame(game.id);
                           setIsMiniGameOpen(true);
                         }}
-                        className={`glass p-4 rounded-lg text-left w-full border-l-4 transition-all ${
-                          isCompleted
-                            ? 'border-success bg-success/10'
-                            : 'border-primary/30 hover:border-accent/50'
-                        }`}
+                        className={`glass p-4 rounded-lg text-left w-full border-l-4 transition-all ${isCompleted
+                          ? 'border-success bg-success/10'
+                          : 'border-primary/30 hover:border-accent/50'
+                          }`}
                       >
                         <div className="flex items-center justify-between mb-2">
                           <h3 className="font-title text-accent text-lg">{game.icon} {game.name}</h3>
                           <div className="flex items-center gap-2">
                             {isCompleted && <span className="text-success text-sm">✓</span>}
-                            <span className={`text-xs px-2 py-1 rounded ${
-                              game.difficulty === 'easy' ? 'bg-green-600' :
+                            <span className={`text-xs px-2 py-1 rounded ${game.difficulty === 'easy' ? 'bg-green-600' :
                               game.difficulty === 'medium' ? 'bg-yellow-600' : 'bg-red-600'
-                            }`}>
+                              }`}>
                               {game.difficulty}
                             </span>
                           </div>
@@ -280,10 +314,14 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
               {showMiniGames && selectedMiniGame && (
                 <>
                   {(() => {
-                    const game = availableMiniGames.find(g => g.id === selectedMiniGame);
+                    const game = availableMiniGames.find(g => g.id === selectedMiniGame)
+                      || Object.values(miniGameMetadata).flat().find(g => g.id === selectedMiniGame);
+
+                    if (!game) return null;
+
                     const isCompleted = completedMiniGames[era]?.includes(selectedMiniGame);
                     const score = miniGameScores[era]?.[selectedMiniGame] || 0;
-                    
+
                     return (
                       <>
                         <div>
@@ -360,7 +398,7 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
                   title={mission.title}
                   description={mission.description}
                   reward={mission.reward}
-                  onAccept={() => {}}
+                  onAccept={() => handleMissionAccept(mission)}
                 />
               ))}
             </div>
@@ -395,10 +433,10 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <HUDStat label="Credits" value={credits} icon="💰" color="secondary" />
             <HUDStat label="Energy" value={energy} icon="⚡" color="accent" />
-            <HUDStat label="Global Stability" value={stability} icon="🌍" 
-                     color={stability > 60 ? "success" : stability > 30 ? "warning" : "danger"} />
+            <HUDStat label="Global Stability" value={stability} icon="🌍"
+              color={stability > 60 ? "success" : stability > 30 ? "warning" : "danger"} />
             <HUDStat label="Timeline Health" value={`${timelineStability[era]}%`} icon="🛡️"
-                     color={timelineStability[era] > 60 ? "success" : timelineStability[era] > 30 ? "warning" : "danger"} />
+              color={timelineStability[era] > 60 ? "success" : timelineStability[era] > 30 ? "warning" : "danger"} />
           </div>
         </div>
       </div>
@@ -414,9 +452,9 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
 
 export const PastScreen = () => {
   const missions = [
-    { id: 1, title: 'Save the Timeline', description: 'Restore 1890s stability', reward: 500 },
-    { id: 2, title: 'Collect Artifacts', description: 'Gather 5 historical artifacts', reward: 750 },
-    { id: 3, title: 'Fix Paradox', description: 'Resolve a major temporal paradox', reward: 1000 },
+    { id: 1, gameId: 'clockmaker', title: 'Save the Timeline', description: 'Align ancient artifacts to restore 1890s stability', reward: 500 },
+    { id: 2, gameId: 'blacksmith', title: 'Collect Artifacts', description: 'Forge historical items required for the timeline', reward: 750 },
+    { id: 3, gameId: 'steam', title: 'Fix Paradox', description: 'Prevent a steam engine catastrophe', reward: 1000 },
   ];
 
   const buildActions = [
@@ -439,9 +477,9 @@ export const PastScreen = () => {
 
 export const PresentScreen = () => {
   const missions = [
-    { id: 1, title: 'Balance Systems', description: 'Restore current timeline balance', reward: 600 },
-    { id: 2, title: 'Deploy Technology', description: 'Install 3 advanced systems', reward: 800 },
-    { id: 3, title: 'Handle Crisis', description: 'Resolve an urgent temporal event', reward: 1200 },
+    { id: 1, gameId: 'grid', title: 'Balance Systems', description: 'Stabilize the modern energy grid', reward: 600 },
+    { id: 2, gameId: 'traffic', title: 'Deploy Technology', description: 'Optimize urban traffic flow algorithms', reward: 800 },
+    { id: 3, gameId: 'stock', title: 'Handle Crisis', description: 'Navigate financial market crash', reward: 1200 },
   ];
 
   const buildActions = [
@@ -464,9 +502,9 @@ export const PresentScreen = () => {
 
 export const FutureScreen = () => {
   const missions = [
-    { id: 1, title: 'Design Future', description: 'Shape the timeline to 2150', reward: 700 },
-    { id: 2, title: 'Unlock Innovations', description: 'Discover 4 future technologies', reward: 900 },
-    { id: 3, title: 'Prevent Collapse', description: 'Stop a catastrophic event', reward: 1500 },
+    { id: 1, gameId: 'reactor', title: 'Design Future', description: 'Secure fusion power for 2150', reward: 700 },
+    { id: 2, gameId: 'defense', title: 'Unlock Innovations', description: 'Defend against rogue AI threats', reward: 900 },
+    { id: 3, gameId: 'rift', title: 'Prevent Collapse', description: 'Stabilize a critical time rift', reward: 1500 },
   ];
 
   const buildActions = [
@@ -486,4 +524,3 @@ export const FutureScreen = () => {
     />
   );
 };
-

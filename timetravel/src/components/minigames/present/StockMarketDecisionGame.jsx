@@ -5,7 +5,10 @@ import { MiniGameBase } from '../EnhancedMiniGameBase';
 export const StockMarketDecisionGame = ({
   title = "Wall Street Trader",
   timeline = "present",
-  difficulty = "medium"
+  difficulty = "medium",
+  onComplete,
+  onClose,
+  gameId
 }) => {
   const [stocks, setStocks] = useState([
     { symbol: 'TECH', price: 150, trend: 0, history: Array(20).fill(150), volatility: 2 },
@@ -143,11 +146,14 @@ export const StockMarketDecisionGame = ({
       ref={gameRef}
       title={title}
       timeline={timeline}
+      gameId={gameId}
       instructions="Buy low, sell high! Watch the news ticker for market trends. Try to maximize your portfolio value."
       objective="Profit over $2000."
       scoring="+1 point for every $10 profit."
       duration={90}
       difficulty={difficulty}
+      onComplete={onComplete}
+      onClose={onClose}
     >
       <div className="w-full h-full p-4 flex flex-col">
         {/* Header Stats */}

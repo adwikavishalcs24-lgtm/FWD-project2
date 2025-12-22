@@ -5,7 +5,10 @@ import { MiniGameBase } from '../EnhancedMiniGameBase';
 export const FusionReactorControl = ({
     title = "Fusion Core Manager",
     timeline = "future",
-    difficulty = "hard"
+    difficulty = "hard",
+    onComplete,
+    onClose,
+    gameId
 }) => {
     const [coreTemp, setCoreTemp] = useState(5000); // Target 5000-6000
     const [containmentField, setContainmentField] = useState(100);
@@ -72,11 +75,14 @@ export const FusionReactorControl = ({
             ref={gameRef}
             title={title}
             timeline={timeline}
+            gameId={gameId}
             instructions="Balance Fuel Injection and Cooling to keep Core Temp in the optimal range (Green Zone). Don't let Containment fail!"
             objective="Generate maximum Energy Output."
             scoring="+10 pts for every GW generated."
             duration={60}
             difficulty={difficulty}
+            onComplete={onComplete}
+            onClose={onClose}
         >
             <div className="w-full h-full flex flex-col p-4 gap-6">
 
