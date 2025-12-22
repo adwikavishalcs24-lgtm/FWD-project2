@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStoreIntegrated';
 import '../../styles/minigames.css';
 
-export const MiniGameBase = ({
+export const MiniGameBase = React.forwardRef(({
   title,
   timeline,
   instructions,
@@ -12,7 +12,7 @@ export const MiniGameBase = ({
   difficulty = 'medium',
   onComplete,
   children
-}) => {
+}, ref) => {
   const {
     submitMiniGameScore,
     addScore,
@@ -79,7 +79,7 @@ export const MiniGameBase = ({
   // Enhanced scoring system
   const addPoints = (basePoints, x, y, type = 'score') => {
     let points = basePoints * comboMultiplier;
-    
+
     if (type === 'perfect') {
       points *= 2;
       setComboMultiplier(prev => Math.min(prev + 0.1, 3.0));
@@ -113,6 +113,7 @@ export const MiniGameBase = ({
 
   // Start game
   const startGame = () => {
+<<<<<<< Updated upstream
     setShowGameOver(false);
     hasEndedRef.current = false;
     
@@ -125,6 +126,13 @@ export const MiniGameBase = ({
       isActive: true,
       gameStarted: true,
       showInstructions: false,
+=======
+    setGameState(prev => ({
+      ...prev,
+      isActive: true,
+      gameStarted: true,
+      showInstructions: false
+>>>>>>> Stashed changes
     }));
 
     // Start countdown timer
@@ -180,21 +188,28 @@ export const MiniGameBase = ({
   };
       
 
+  React.useImperativeHandle(ref, () => ({
+    addPoints,
+    endGame,
+    startGame,
+    isGameStarted: gameState.gameStarted
+  }));
+
   // Calculate enhanced rewards based on performance
   const calculateEnhancedRewards = () => {
     const { score, timeLeft, lives, combos, perfectStreak } = gameState;
     const { perfectActions, totalActions, maxCombo } = gameStats;
-    
+
     const accuracy = totalActions > 0 ? perfectActions / totalActions : 0;
     const timeBonus = Math.max(0, timeLeft) * 10;
     const lifeBonus = lives * 50;
     const comboBonus = maxCombo * 100;
-    
+
     const baseCredits = Math.floor(score / 10);
     const bonusCredits = Math.floor(timeBonus + lifeBonus + comboBonus);
-    
+
     const totalCredits = baseCredits + bonusCredits;
-    
+
     return {
       credits: totalCredits,
       energy: -10 + Math.floor(lives * 2),
@@ -311,22 +326,22 @@ export const MiniGameBase = ({
           {difficulty.toUpperCase()}
         </div>
       </div>
-      
+
       <div className="instructions-content">
         <div className="instruction-card">
           <h3 className="text-xl font-semibold mb-3">📋 Instructions</h3>
           <p className="text-lg leading-relaxed">{instructions}</p>
         </div>
-        
+
         <div className="objective-card">
           <h3 className="text-xl font-semibold mb-3">🎯 Objective</h3>
           <p className="text-lg leading-relaxed">{objective}</p>
         </div>
-        
+
         <div className="scoring-card">
           <h3 className="text-xl font-semibold mb-3">🏆 Scoring</h3>
           <p className="text-lg leading-relaxed">{scoring}</p>
-          
+
           <div className="scoring-details">
             <div className="scoring-item">
               <span className="perfect">Perfect Action</span>
@@ -344,7 +359,7 @@ export const MiniGameBase = ({
           </div>
         </div>
       </div>
-      
+
       <button
         onClick={startGame}
         className="start-game-btn"
@@ -367,7 +382,7 @@ export const MiniGameBase = ({
           <span className="hud-value combo">{comboMultiplier > 1 ? `x${comboMultiplier.toFixed(1)}` : '--'}</span>
         </div>
       </div>
-      
+
       <div className="hud-center">
         <div className="hud-item">
           <span className="hud-label">Time</span>
@@ -376,7 +391,7 @@ export const MiniGameBase = ({
           </span>
         </div>
       </div>
-      
+
       <div className="hud-right">
         <div className="hud-item">
           <span className="hud-label">Lives</span>
@@ -431,13 +446,13 @@ export const MiniGameBase = ({
       )}
     </div>
   );
-};
+});
 
 
 // Export enhanced game store hook
 export const useEnhancedMiniGame = (timeline, gameId, title) => {
   const { submitMiniGameScore } = useGameStore();
-  
+
   const handleSubmitScore = async (score, additionalData = {}) => {
     try {
       await submitMiniGameScore(timeline, gameId, score, additionalData);
