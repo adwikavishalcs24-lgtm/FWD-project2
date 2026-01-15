@@ -186,7 +186,7 @@ const query = (sql, params = []) => {
 
 const run = (sql, params = []) => {
   return new Promise((resolve, reject) => {
-    db.run(sql, params, function(err) {
+    db.run(sql, params, function (err) {
       if (err) reject(err);
       else resolve({ lastID: this.lastID, changes: this.changes });
     });
@@ -243,12 +243,13 @@ const userDB = {
     return await run(sql, [id]);
   },
 
-  update: async (id, updates) => {
+  updateProfile: async (id, updates) => {
     const fields = Object.keys(updates).map(key => `${key} = ?`).join(', ');
     const values = Object.values(updates);
     values.push(id);
     const sql = `UPDATE users SET ${fields}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-    return await run(sql, values);
+    await run(sql, values);
+    return await userDB.findById(id);
   },
 
   verifyEmail: async (id) => {
@@ -296,17 +297,18 @@ const gameSessionDB = {
 
   update: async (id, updates) => {
     const fields = Object.keys(updates).map(key => {
-      if (key === 'game_state') return 'game_state = ?';
+      if (key === 'game_state' || key === 'gameState') return 'game_state = ?';
       return `${key} = ?`;
     }).join(', ');
-    
+
     const values = Object.values(updates).map(value => {
       return typeof value === 'object' ? JSON.stringify(value) : value;
     });
     values.push(id);
-    
+
     const sql = `UPDATE game_sessions SET ${fields}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND is_active = 1`;
-    return await run(sql, values);
+    await run(sql, values);
+    return await gameSessionDB.findById(id);
   },
 
   deactivate: async (id) => {
@@ -380,7 +382,7 @@ const resourcesDB = {
   createOrUpdate: async (sessionId, timeline, resources) => {
     // Check if exists
     const existing = await resourcesDB.findBySessionAndTimeline(sessionId, timeline);
-    
+
     if (existing) {
       // Update existing
       const fields = Object.keys(resources).map(key => `${key} = ?`).join(', ');
@@ -409,7 +411,7 @@ const timelineStabilityDB = {
 
   createOrUpdate: async (sessionId, timeline, stability) => {
     const existing = await timelineStabilityDB.findBySessionAndTimeline(sessionId, timeline);
-    
+
     if (existing) {
       const sql = 'UPDATE timeline_stability SET stability = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ? AND timeline = ?';
       return await run(sql, [stability, sessionId, timeline]);

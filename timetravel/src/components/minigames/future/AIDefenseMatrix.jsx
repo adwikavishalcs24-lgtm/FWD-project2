@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { MiniGameBase } from '../EnhancedMiniGameBase';
 
@@ -10,284 +9,248 @@ export const AIDefenseMatrix = ({
   onClose,
   gameId
 }) => {
+  const gridSize = 5;
+
   const [gameState, setGameState] = useState({
     grid: [],
-    playerPos: { x: 2, y: 2 },
     viruses: [],
-    firewalls: [],
-    packets: [],
     integrity: 100,
-    threatLevel: 0,
-    networkLoad: 0,
-    activeNodes: 0,
-    securityClearance: 1,
-    detectedThreats: []
+    threatLevel: 0
   });
 
   const [stats, setStats] = useState({
-    threatsNeutralized: 0,
-    packetsDelivered: 0,
-    uptime: 0,
-    efficiency: 100
+    threatsNeutralized: 0
   });
 
-  const [activeEffects, setActiveEffects] = useState([]);
-  const [selectedNode, setSelectedNode] = useState(null);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [coreBreached, setCoreBreached] = useState(false);
 
-  const gridSize = 5;
-  const gameLoopRef = useRef();
+  const gameLoopRef = useRef(null);
   const gameRef = useRef(null);
 
-  // Initialize Grid
+  /* ================= INITIALIZE GRID ================= */
   useEffect(() => {
-    const initGrid = () => {
-      const grid = [];
-      for (let y = 0; y < gridSize; y++) {
-        for (let x = 0; x < gridSize; x++) {
-          grid.push({
-            id: `${x}-${y}`,
-            x,
-            y,
-            type: 'node', // node, core, firewall, corrupted
-            status: 'active', // active, inactive, compromised
-            load: Math.random() * 30,
-            security: Math.floor(Math.random() * 100)
-          });
-        }
+    const grid = [];
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        grid.push({
+          id: `${x}-${y}`,
+          x,
+          y,
+          type: 'node'
+        });
       }
+    }
 
-      // Set core
-      const centerIndex = Math.floor(grid.length / 2);
-      grid[centerIndex].type = 'core';
-      grid[centerIndex].security = 100;
+    const center = Math.floor(grid.length / 2);
+    grid[center].type = 'core';
 
-      setGameState(prev => ({
-        ...prev,
-        grid,
-        playerPos: { x: Math.floor(gridSize / 2), y: Math.floor(gridSize / 2) }
-      }));
-    };
-
-    initGrid();
+    setGameState({
+      grid,
+      viruses: [],
+      integrity: 100,
+      threatLevel: 0
+    });
   }, [difficulty]);
 
-  // Main game loop
+  /* ================= CORE BREACH ================= */
+  const triggerCoreBreach = () => {
+    if (isGameOver) return;
+
+    setIsGameOver(true);
+    setCoreBreached(true);
+    clearInterval(gameLoopRef.current);
+
+    gameRef.current?.addPoints(-200, 400, 300, 'miss');
+
+    setTimeout(() => {
+      gameRef.current?.endGame({
+        success: false,
+        reason: 'core_breach'
+      });
+    }, 2200);
+  };
+
+  /* ================= GAME LOOP ================= */
   useEffect(() => {
+    if (isGameOver) return;
+
     gameLoopRef.current = setInterval(() => {
       setGameState(prev => {
-        const newState = { ...prev };
+        let newState = { ...prev };
 
-        // Spawn viruses
-        if (Math.random() < (0.05 * (difficulty === 'hard' ? 2 : 1))) {
-          const edgeNodes = newState.grid.filter(n =>
-            n.x === 0 || n.x === gridSize - 1 || n.y === 0 || n.y === gridSize - 1
+        /* ---- Spawn Virus ---- */
+        if (Math.random() < 0.08) {
+          const edges = prev.grid.filter(
+            n => n.x === 0 || n.y === 0 || n.x === gridSize - 1 || n.y === gridSize - 1
           );
-          const spawnNode = edgeNodes[Math.floor(Math.random() * edgeNodes.length)];
+          const spawn = edges[Math.floor(Math.random() * edges.length)];
 
-          if (!newState.viruses.find(v => v.x === spawnNode.x && v.y === spawnNode.y)) {
-            newState.viruses.push({
-              id: Date.now(),
-              x: spawnNode.x,
-              y: spawnNode.y,
-              type: Math.random() > 0.8 ? 'trojan' : 'malware',
-              hp: 100
-            });
-          }
+          newState.viruses.push({
+            id: Date.now() + Math.random(),
+            x: spawn.x,
+            y: spawn.y,
+            hp: 100
+          });
         }
 
-        // Move viruses towards core
-        const coreX = Math.floor(gridSize / 2);
-        const coreY = Math.floor(gridSize / 2);
+        /* ---- Move Viruses ---- */
+        const cx = Math.floor(gridSize / 2);
+        const cy = Math.floor(gridSize / 2);
 
         newState.viruses = newState.viruses.map(v => {
-          if (Math.random() > 0.3) return v; // Don't move every tick
-
-          let dx = coreX - v.x;
-          let dy = coreY - v.y;
-
-          if (Math.abs(dx) > Math.abs(dy)) {
-            v.x += dx > 0 ? 1 : -1;
-          } else {
-            v.y += dy > 0 ? 1 : -1;
-          }
-
+          if (Math.random() > 0.6) return v;
+          if (v.x !== cx) v.x += v.x < cx ? 1 : -1;
+          else if (v.y !== cy) v.y += v.y < cy ? 1 : -1;
           return v;
         });
 
-        // Check collisions and damage
+        /* ---- Damage Core ---- */
         newState.viruses.forEach(v => {
-          if (v.x === coreX && v.y === coreY) {
-            newState.integrity = Math.max(0, newState.integrity - 5);
-            if (gameRef.current?.isGameStarted) {
-              gameRef.current.addPoints(-50, 400, 300, 'miss');
-            }
-          }
-
-          // Check firewall collision
-          const nodeIndex = v.y * gridSize + v.x;
-          if (newState.grid[nodeIndex].type === 'firewall') {
-            v.hp -= 20;
+          if (v.x === cx && v.y === cy) {
+            newState.integrity -= 6;
+            gameRef.current?.addPoints(-40, 400, 300, 'miss');
           }
         });
 
-        // Remove dead viruses
-        const survivingViruses = newState.viruses.filter(v => v.hp > 0);
-        if (survivingViruses.length < newState.viruses.length) {
-          const killedCount = newState.viruses.length - survivingViruses.length;
-          setStats(s => ({ ...s, threatsNeutralized: s.threatsNeutralized + killedCount }));
-          if (gameRef.current?.isGameStarted) {
-            gameRef.current.addPoints(killedCount * 50, 400, 300, 'score'); // Passive kill
-          }
+        /* ---- Check Breach ---- */
+        if (newState.integrity <= 0) {
+          triggerCoreBreach();
+          return newState;
         }
-        newState.viruses = survivingViruses;
 
-        // Update stats
-        newState.threatLevel = Math.min(100, newState.viruses.length * 10);
-
+        newState.threatLevel = Math.min(100, newState.viruses.length * 12);
         return newState;
       });
     }, 500);
 
     return () => clearInterval(gameLoopRef.current);
-  }, [difficulty]);
+  }, [isGameOver]);
 
+  /* ================= ACTIONS ================= */
   const deployFirewall = (x, y) => {
-    if (!gameRef.current?.isGameStarted) return;
+    if (!gameRef.current?.isGameStarted || isGameOver) return;
 
     setGameState(prev => {
-      const newGrid = [...prev.grid];
-      const index = y * gridSize + x;
+      const grid = [...prev.grid];
+      const idx = y * gridSize + x;
 
-      if (newGrid[index].type === 'node') { // && prev.activeNodes > 0
-        newGrid[index].type = 'firewall';
-        // Add particle effect
-        setActiveEffects(e => [...e, { x, y, type: 'deploy' }]);
-        setTimeout(() => setActiveEffects(e => e.filter(eff => eff.type !== 'deploy')), 1000);
+      if (grid[idx].type === 'node') {
+        grid[idx].type = 'firewall';
       }
-
-      return { ...prev, grid: newGrid };
+      return { ...prev, grid };
     });
   };
 
-  const neutralizeThreat = (virusId) => {
-    if (!gameRef.current?.isGameStarted) return;
+  const neutralizeThreat = id => {
+    if (!gameRef.current?.isGameStarted || isGameOver) return;
 
     setGameState(prev => {
-      const newViruses = prev.viruses.filter(v => v.id !== virusId);
-      if (newViruses.length < prev.viruses.length) {
-        // Success effect
-        if (gameRef.current) {
-          gameRef.current.addPoints(100, 400, 300, 'perfect'); // Manual kill bonus
-        }
-        return {
-          ...prev,
-          viruses: newViruses,
-          integrity: Math.min(100, prev.integrity + 1)
-        };
+      const remaining = prev.viruses.filter(v => v.id !== id);
+      if (remaining.length < prev.viruses.length) {
+        gameRef.current?.addPoints(100, 400, 300, 'perfect');
+        setStats(s => ({ ...s, threatsNeutralized: s.threatsNeutralized + 1 }));
       }
-      return prev;
+      return { ...prev, viruses: remaining };
     });
-    setStats(prev => ({ ...prev, threatsNeutralized: prev.threatsNeutralized + 1 }));
   };
 
-  const renderGrid = () => {
-    return (
-      <div
-        className="grid gap-1 bg-gray-900 p-2 rounded-lg border-2 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]"
-        style={{
-          gridTemplateColumns: `repeat(${gridSize}, 1fr)`,
-          width: 'fit-content',
-          margin: '0 auto'
-        }}
-      >
-        {gameState.grid.map((node) => {
-          const isCore = node.type === 'core';
-          const isFirewall = node.type === 'firewall';
-          const virus = gameState.viruses.find(v => v.x === node.x && v.y === node.y);
+  /* ================= GRID ================= */
+  const renderGrid = () => (
+    <div
+      className="grid gap-1 bg-gray-900 p-2 rounded-lg border-2 border-blue-500"
+      style={{ gridTemplateColumns: `repeat(${gridSize}, 1fr)` }}
+    >
+      {gameState.grid.map(node => {
+        const virus = gameState.viruses.find(v => v.x === node.x && v.y === node.y);
+        const isCore = node.type === 'core';
 
-          return (
-            <div
-              key={node.id}
-              className={`
-                w-16 h-16 flex items-center justify-center relative cursor-pointer transition-all duration-300
-                ${isCore ? 'bg-blue-900 border-2 border-blue-400' :
-                  isFirewall ? 'bg-green-900 border border-green-500' :
-                    'bg-gray-800 border border-gray-700 hover:border-blue-500'}
-                ${virus ? 'bg-red-900/50 animate-pulse' : ''}
-              `}
-              onClick={() => virus ? neutralizeThreat(virus.id) : deployFirewall(node.x, node.y)}
-            >
-              {isCore && <span className="text-2xl">💠</span>}
-              {isFirewall && <span className="text-xl">🛡️</span>}
-              {virus && <span className="text-2xl animate-bounce">👾</span>}
+        return (
+          <div
+            key={node.id}
+            onClick={() =>
+              virus ? neutralizeThreat(virus.id) : deployFirewall(node.x, node.y)
+            }
+            className={`
+              w-16 h-16 flex items-center justify-center cursor-pointer relative
+              ${isCore ? 'bg-blue-900 border-2 border-blue-400' :
+              node.type === 'firewall' ? 'bg-green-900 border border-green-500' :
+              'bg-gray-800 border border-gray-700'}
+              ${virus ? 'bg-red-900/50 animate-pulse' : ''}
+            `}
+          >
+            {isCore && <span className="text-2xl">💠</span>}
+            {node.type === 'firewall' && <span>🛡️</span>}
+            {virus && <span className="text-2xl animate-bounce">👾</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
 
-              {!isCore && !isFirewall && !virus && (
-                <div className="absolute inset-0 flex items-center justify-center opacity-20">
-                  <div className="w-1 h-1 bg-blue-400 rounded-full mx-0.5 animate-ping"></div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const instructions = `
-    Protect the Neural Core 💠 from incoming viral threats 👾.
-    • Click empty nodes to deploy Firewalls 🛡️.
-    • Click viruses directly to manually neutralize them (Manual Override).
-    • Maintain System Integrity above 0%.
-  `;
-
-  const objective = "Protect the Core from Malware.";
-  const scoring = "+50 pts per virus neutralized. +100 pts for high integrity survival.";
-
+  /* ================= UI ================= */
   return (
     <MiniGameBase
       ref={gameRef}
       title={title}
       timeline={timeline}
       gameId={gameId}
-      instructions={instructions}
-      objective={objective}
-      scoring={scoring}
+      instructions="Defend the Neural Core. Deploy firewalls or manually eliminate threats."
+      objective="Prevent a Core Breach."
+      scoring="+100 manual kills · Survival bonus"
       duration={60}
       difficulty={difficulty}
       onComplete={onComplete}
       onClose={onClose}
     >
-      <div className="flex flex-col items-center h-full">
-        {/* HUD */}
-        <div className="flex w-full justify-between mb-4 px-4">
+      <div className="relative w-full h-full flex flex-col items-center">
+
+        {/* ===== CORE BREACH CINEMATIC ===== */}
+        {coreBreached && (
+          <>
+            <div className="absolute inset-0 bg-red-600 opacity-40 animate-ping z-40" />
+            <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center">
+              <h1 className="text-5xl font-extrabold text-red-500 animate-pulse mb-4">
+                ☢️ CORE BREACH
+              </h1>
+              <p className="text-gray-300 mb-6 text-center max-w-md">
+                The AI Defense Network has collapsed. Malware overwhelmed the Neural Core.
+              </p>
+              <button
+                onClick={onClose}
+                className="px-6 py-3 bg-red-600 rounded-lg font-bold hover:bg-red-700"
+              >
+                Exit Timeline
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ===== HUD ===== */}
+        <div className="flex justify-between w-full px-6 mb-4">
           <div className="bg-gray-800 px-4 py-2 rounded border border-blue-500">
-            <div className="text-xs text-blue-300 uppercase">System Integrity</div>
-            <div className={`text-2xl font-bold font-mono ${gameState.integrity < 30 ? 'text-red-500 animate-pulse' : 'text-blue-400'}`}>
-              {Math.round(gameState.integrity)}%
+            <div className="text-xs text-blue-300">Integrity</div>
+            <div className={`text-2xl font-mono ${gameState.integrity < 30 ? 'text-red-500 animate-pulse' : 'text-blue-400'}`}>
+              {Math.max(0, Math.round(gameState.integrity))}%
             </div>
           </div>
 
           <div className="bg-gray-800 px-4 py-2 rounded border border-red-500">
-            <div className="text-xs text-red-300 uppercase">Threat Level</div>
-            <div className="text-2xl font-bold font-mono text-red-400">
+            <div className="text-xs text-red-300">Threat Level</div>
+            <div className="text-2xl font-mono text-red-400">
               {gameState.threatLevel}%
             </div>
           </div>
         </div>
 
-        {/* Main Grid */}
-        <div className="flex-1 flex items-center justify-center relative">
+        {/* ===== GRID ===== */}
+        <div className="flex-1 flex items-center justify-center">
           {renderGrid()}
-
-          {/* Scan Line Effect */}
-          <div className="absolute inset-0 pointer-events-none opacity-10 bg-gradient-to-b from-transparent via-blue-500 to-transparent h-4 w-full animate-[scan_2s_linear_infinite]" />
         </div>
 
-        {/* Action Bar */}
-        <div className="mt-4 flex gap-4">
-          <div className="text-sm text-gray-400 font-mono">
-            Neutralized: <span className="text-white">{stats.threatsNeutralized}</span>
-          </div>
+        {/* ===== STATS ===== */}
+        <div className="mt-4 text-sm text-gray-400 font-mono">
+          Neutralized: <span className="text-white">{stats.threatsNeutralized}</span>
         </div>
       </div>
     </MiniGameBase>

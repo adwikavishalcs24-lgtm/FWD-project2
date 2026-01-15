@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MiniGameBase } from '../EnhancedMiniGameBase';
 
 export const EnhancedTrafficSignalController = ({
@@ -10,576 +9,227 @@ export const EnhancedTrafficSignalController = ({
   onClose,
   gameId
 }) => {
-  const [gameState, setGameState] = useState({
-    intersections: [],
-    trafficFlow: new Map(),
-    emergencyVehicles: [],
-    congestionLevel: 0,
-    averageWaitTime: 0,
-    pollutionLevel: 0,
-    systemEfficiency: 100,
-    activeAlgorithms: [],
-    weather: 'clear', // clear, rain, snow, fog
-    timeOfDay: 'morning', // morning, afternoon, evening, night
-    trafficLights: [],
-    vehicleSpawnRate: 1.0,
-    emergencyMode: false
+  /* ===================== STATE ===================== */
+  const [intersections, setIntersections] = useState([]);
+  const [algorithm, setAlgorithm] = useState('fixed');
+
+  const [stats, setStats] = useState({
+    congestion: 0,
+    pollution: 0,
+    efficiency: 100,
+    processed: 0,
+    accidents: 0
   });
 
-  const [trafficStats, setTrafficStats] = useState({
-    vehiclesProcessed: 0,
-    accidents: 0,
-    emergencyResponse: 0,
-    averageSpeed: 0,
-    peakHour: false,
-    trafficDensity: 0
-  });
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [success, setSuccess] = useState(false);
 
-  const [algorithms, setAlgorithms] = useState([
-    { id: 'fixed', name: 'Fixed Timing', active: false, efficiency: 70 },
-    { id: 'adaptive', name: 'Adaptive Control', active: false, efficiency: 85 },
-    { id: 'ai', name: 'AI Optimization', active: false, efficiency: 95 },
-    { id: 'predictive', name: 'Predictive Analysis', active: false, efficiency: 90 }
-  ]);
+  const gameRef = useRef(null);
+  const loopRef = useRef(null);
+  const spawnRef = useRef(null);
 
-  const [alerts, setAlerts] = useState([]);
-  const [optimizationSuggestions, setOptimizationSuggestions] = useState([]);
-
-  const gameLoopRef = useRef();
-  const trafficSpawnerRef = useRef();
-
-  // Initialize intersection network
+  /* ===================== INIT ===================== */
   useEffect(() => {
-    const initializeIntersections = () => {
-      const intersectionCount = { easy: 4, medium: 6, hard: 9 }[difficulty];
-      const intersections = [];
+    const count = { easy: 4, medium: 6, hard: 9 }[difficulty];
 
-      for (let i = 0; i < intersectionCount; i++) {
-        const row = Math.floor(i / 3);
-        const col = i % 3;
+    const grid = Array.from({ length: count }).map((_, i) => ({
+      id: i,
+      x: 100 + (i % 3) * 200,
+      y: 100 + Math.floor(i / 3) * 200,
+      queues: { north: 0, south: 0, east: 0, west: 0 },
+      nsGreen: true,
+      timer: 30
+    }));
 
-        intersections.push({
-          id: i,
-          x: col * 200 + 100,
-          y: row * 200 + 100,
-          trafficLight: {
-            north: { state: 'green', timer: 30, direction: 'north-south' },
-            south: { state: 'green', timer: 30, direction: 'north-south' },
-            east: { state: 'red', timer: 25, direction: 'east-west' },
-            west: { state: 'red', timer: 25, direction: 'east-west' }
-          },
-          queue: {
-            north: [],
-            south: [],
-            east: [],
-            west: []
-          },
-          congestion: 0,
-          priority: row === 1 && col === 1 ? 'high' : 'normal'
-        });
-      }
-
-      setGameState(prev => ({ ...prev, intersections, trafficLights: intersections.map(i => i.trafficLight) }));
-    };
-
-    initializeIntersections();
+    setIntersections(grid);
   }, [difficulty]);
 
-  // Generate vehicle
-  const generateVehicle = useCallback(() => {
-    if (Math.random() > gameState.vehicleSpawnRate * (trafficStats.peakHour ? 1.5 : 1.0)) return;
+  /* ===================== HELPERS ===================== */
+  const congestionOf = i =>
+    Object.values(i.queues).reduce((a, b) => a + b, 0);
 
-    const directions = ['north', 'south', 'east', 'west'];
-    const startDirection = directions[Math.floor(Math.random() * directions.length)];
-    const targetIntersection = Math.floor(Math.random() * gameState.intersections.length);
-
-    const vehicle = {
-      id: Date.now() + Math.random(),
-      type: Math.random() < 0.1 ? 'emergency' : Math.random() < 0.2 ? 'truck' : 'car',
-      direction: startDirection,
-      targetIntersection,
-      speed: 1,
-      waitTime: 0,
-      route: generateRoute(startDirection, targetIntersection),
-      priority: Math.random() < 0.05 ? 'high' : 'normal'
-    };
-
-    setGameState(prev => ({
-      ...prev,
-      trafficFlow: new Map(prev.trafficFlow.set(vehicle.id, vehicle))
-    }));
-  }, [gameState.intersections.length, gameState.vehicleSpawnRate, trafficStats.peakHour]);
-
-  const generateRoute = (startDirection, targetIntersection) => {
-    // Simple routing algorithm - in a real implementation this would be more sophisticated
-    const routes = {
-      north: ['north', 'east', 'south', 'west'],
-      south: ['south', 'west', 'north', 'east'],
-      east: ['east', 'south', 'west', 'north'],
-      west: ['west', 'north', 'east', 'south']
-    };
-
-    return routes[startDirection] || ['north'];
+  const processRate = () => {
+    switch (algorithm) {
+      case 'adaptive': return 2;
+      case 'ai': return 3;
+      case 'predictive': return 2.5;
+      default: return 1;
+    }
   };
 
-  // Process intersection
-  const processIntersection = (intersection) => {
-    const updatedIntersection = { ...intersection };
-    let totalWaitTime = 0;
-    let processedVehicles = 0;
+  /* ===================== GAME END ===================== */
+  const endGame = win => {
+    if (isGameOver) return;
+    setIsGameOver(true);
+    setSuccess(win);
+    clearInterval(loopRef.current);
+    clearInterval(spawnRef.current);
 
-    // Update traffic light timers
-    Object.keys(updatedIntersection.trafficLight).forEach(direction => {
-      const light = updatedIntersection.trafficLight[direction];
-      light.timer = Math.max(0, light.timer - 1);
-
-      if (light.timer === 0) {
-        // Switch light
-        if (light.direction === 'north-south') {
-          // North-South lights
-          updatedIntersection.trafficLight.north.state =
-            updatedIntersection.trafficLight.north.state === 'green' ? 'red' : 'green';
-          updatedIntersection.trafficLight.south.state =
-            updatedIntersection.trafficLight.south.state === 'green' ? 'red' : 'green';
-          updatedIntersection.trafficLight.north.timer = 30;
-          updatedIntersection.trafficLight.south.timer = 30;
-        } else {
-          // East-West lights
-          updatedIntersection.trafficLight.east.state =
-            updatedIntersection.trafficLight.east.state === 'green' ? 'red' : 'green';
-          updatedIntersection.trafficLight.west.state =
-            updatedIntersection.trafficLight.west.state === 'green' ? 'red' : 'green';
-          updatedIntersection.trafficLight.east.timer = 25;
-          updatedIntersection.trafficLight.west.timer = 25;
-        }
-      }
-    });
-
-    // Process vehicle queues
-    Object.keys(updatedIntersection.queue).forEach(direction => {
-      const queue = updatedIntersection.queue[direction];
-      const light = updatedIntersection.trafficLight[direction];
-
-      if (light.state === 'green' && queue.length > 0) {
-        // Allow vehicles to pass
-        const vehiclesToPass = Math.min(3, queue.length);
-        for (let i = 0; i < vehiclesToPass; i++) {
-          const vehicle = queue.shift();
-          totalWaitTime += vehicle.waitTime;
-          processedVehicles++;
-        }
-      }
-    });
-
-    updatedIntersection.congestion = updatedIntersection.queue.north.length +
-      updatedIntersection.queue.south.length +
-      updatedIntersection.queue.east.length +
-      updatedIntersection.queue.west.length;
-
-    return {
-      intersection: updatedIntersection,
-      stats: { totalWaitTime, processedVehicles }
-    };
-  };
-
-  // Optimize traffic flow
-  const optimizeTrafficFlow = () => {
-    const activeAlgorithm = algorithms.find(a => a.active);
-    if (!activeAlgorithm) return;
-
-    setGameState(prev => {
-      const optimizedIntersections = prev.intersections.map(intersection => {
-        const newIntersection = { ...intersection };
-
-        switch (activeAlgorithm.id) {
-          case 'adaptive':
-            // Adjust timing based on congestion
-            const totalCongestion = newIntersection.congestion;
-            if (totalCongestion > 10) {
-              // Extend green time for congested directions
-              Object.keys(newIntersection.trafficLight).forEach(direction => {
-                const light = newIntersection.trafficLight[direction];
-                if (light.state === 'green' && newIntersection.queue[direction].length > 3) {
-                  light.timer += 5;
-                }
-              });
-            }
-            break;
-
-          case 'ai':
-            // AI optimization based on predicted traffic
-            const peakHourMultiplier = trafficStats.peakHour ? 1.3 : 1.0;
-            Object.keys(newIntersection.trafficLight).forEach(direction => {
-              const light = newIntersection.trafficLight[direction];
-              const queueLength = newIntersection.queue[direction].length;
-
-              if (queueLength > 5) {
-                light.timer = Math.min(45, light.timer + Math.floor(queueLength * 0.5 * peakHourMultiplier));
-              } else if (queueLength < 2 && light.timer > 15) {
-                light.timer = Math.max(15, light.timer - 2);
-              }
-            });
-            break;
-
-          case 'predictive':
-            // Predictive optimization based on time and weather
-            const timeMultiplier = {
-              morning: 1.2,
-              afternoon: 1.5,
-              evening: 1.8,
-              night: 0.8
-            }[prev.timeOfDay];
-
-            const weatherMultiplier = {
-              clear: 1.0,
-              rain: 1.3,
-              snow: 1.6,
-              fog: 1.4
-            }[prev.weather];
-
-            Object.keys(newIntersection.trafficLight).forEach(direction => {
-              const light = newIntersection.trafficLight[direction];
-              light.timer = Math.floor(light.timer * timeMultiplier * weatherMultiplier);
-            });
-            break;
-        }
-
-        return newIntersection;
-      });
-
-      return { ...prev, intersections: optimizedIntersections };
+    gameRef.current?.endGame({
+      success: win,
+      reason: win ? 'traffic_optimized' : 'gridlock'
     });
   };
 
-  // Handle emergency vehicle
-  const handleEmergencyVehicle = (vehicleId) => {
-    setGameState(prev => ({
-      ...prev,
-      emergencyMode: true,
-      emergencyVehicles: [...prev.emergencyVehicles, vehicleId]
-    }));
-
-    // Clear all intersections for emergency vehicle
-    setTimeout(() => {
-      setGameState(prev => ({ ...prev, emergencyMode: false }));
-    }, 10000);
-  };
-
-  // Main game loop
+  /* ===================== VEHICLE SPAWN ===================== */
   useEffect(() => {
-    gameLoopRef.current = setInterval(() => {
-      setGameState(prev => {
-        const newState = { ...prev };
+    spawnRef.current = setInterval(() => {
+      setIntersections(prev =>
+        prev.map(i => {
+          const dir = ['north', 'south', 'east', 'west'][Math.floor(Math.random() * 4)];
+          return {
+            ...i,
+            queues: { ...i.queues, [dir]: i.queues[dir] + 1 }
+          };
+        })
+      );
+    }, 1500);
 
-        // Update intersections
-        const updatedIntersections = prev.intersections.map(intersection => {
-          const { intersection: processedIntersection } = processIntersection(intersection);
-          return processedIntersection;
-        });
-
-        newState.intersections = updatedIntersections;
-
-        // Update congestion and pollution
-        const totalCongestion = updatedIntersections.reduce((sum, i) => sum + i.congestion, 0);
-        newState.congestionLevel = Math.floor(totalCongestion / updatedIntersections.length);
-        newState.pollutionLevel = Math.min(100, newState.congestionLevel * 2);
-        newState.systemEfficiency = Math.max(0, 100 - newState.congestionLevel);
-
-        return newState;
-      });
-
-      // Update traffic stats
-      setTrafficStats(prev => ({
-        ...prev,
-        averageSpeed: Math.max(0, 50 - gameState.congestionLevel),
-        trafficDensity: gameState.congestionLevel,
-        peakHour: new Date().getHours() >= 7 && new Date().getHours() <= 9 ||
-          new Date().getHours() >= 17 && new Date().getHours() <= 19
-      }));
-
-      // Generate optimization suggestions
-      if (gameState.congestionLevel > 15) {
-        setOptimizationSuggestions(prev => [...prev.slice(-2), {
-          type: 'congestion',
-          message: `High congestion detected (${gameState.congestionLevel}%). Consider switching to AI optimization.`,
-          timestamp: Date.now()
-        }]);
-      }
-    }, 500);
-
-    return () => clearInterval(gameLoopRef.current);
+    return () => clearInterval(spawnRef.current);
   }, []);
 
-  // Traffic spawner
+  /* ===================== MAIN LOOP ===================== */
   useEffect(() => {
-    trafficSpawnerRef.current = setInterval(() => {
-      generateVehicle();
-    }, 2000);
+    loopRef.current = setInterval(() => {
+      if (isGameOver) return;
 
-    return () => clearInterval(trafficSpawnerRef.current);
-  }, [generateVehicle]);
+      setIntersections(prev =>
+        prev.map(i => {
+          const rate = processRate();
 
-  const renderTrafficNetwork = () => {
-    const { intersections, emergencyMode } = gameState;
+          const canMoveNS = i.nsGreen;
+          const updatedQueues = { ...i.queues };
 
-    return (
-      <div className="traffic-network">
-        <div className="network-container">
-          <svg className="traffic-svg" viewBox="0 0 600 400">
-            {/* Background grid */}
-            <defs>
-              <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
-                <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#333" strokeWidth="0.5" />
-              </pattern>
+          if (canMoveNS) {
+            updatedQueues.north = Math.max(0, updatedQueues.north - rate);
+            updatedQueues.south = Math.max(0, updatedQueues.south - rate);
+          } else {
+            updatedQueues.east = Math.max(0, updatedQueues.east - rate);
+            updatedQueues.west = Math.max(0, updatedQueues.west - rate);
+          }
 
-              <filter id="glow">
-                <feGaussianBlur stdDeviation="2" result="coloredBlur" />
-                <feMerge>
-                  <feMergeNode in="coloredBlur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
+          return {
+            ...i,
+            queues: updatedQueues,
+            timer: i.timer - 1 <= 0 ? 30 : i.timer - 1,
+            nsGreen: i.timer - 1 <= 0 ? !i.nsGreen : i.nsGreen
+          };
+        })
+      );
 
-            <rect width="600" height="400" fill="url(#grid)" />
+      setStats(prev => {
+        const totalCongestion = intersections.reduce(
+          (a, i) => a + congestionOf(i), 0
+        );
 
-            {/* Roads */}
-            <g className="roads">
-              {/* Horizontal roads */}
-              <line x1="0" y1="100" x2="600" y2="100" stroke="#555" strokeWidth="8" />
-              <line x1="0" y1="200" x2="600" y2="200" stroke="#555" strokeWidth="8" />
-              <line x1="0" y1="300" x2="600" y2="300" stroke="#555" strokeWidth="8" />
+        const pollution = Math.min(100, totalCongestion * 2);
+        const efficiency = Math.max(0, 100 - totalCongestion);
 
-              {/* Vertical roads */}
-              <line x1="100" y1="0" x2="100" y2="400" stroke="#555" strokeWidth="8" />
-              <line x1="300" y1="0" x2="300" y2="400" stroke="#555" strokeWidth="8" />
-              <line x1="500" y1="0" x2="500" y2="400" stroke="#555" strokeWidth="8" />
-            </g>
+        if (gameRef.current?.isGameStarted) {
+          if (totalCongestion < 10)
+            gameRef.current.addPoints(15, 300, 150, 'perfect');
+          else if (totalCongestion < 20)
+            gameRef.current.addPoints(5, 300, 150, 'score');
+          else
+            gameRef.current.addPoints(-5, 300, 150, 'miss');
+        }
 
-            {/* Intersections */}
-            {intersections.map(intersection => (
-              <g key={intersection.id}>
-                {/* Intersection circle */}
-                <circle
-                  cx={intersection.x}
-                  cy={intersection.y}
-                  r="15"
-                  fill={emergencyMode ? "#ff4444" : "#333"}
-                  stroke="#fff"
-                  strokeWidth="2"
-                  filter="url(#glow)"
-                  className="intersection-node"
-                />
+        if (totalCongestion > 50) endGame(false);
 
-                {/* Traffic lights */}
-                {Object.entries(intersection.trafficLight).map(([direction, light]) => {
-                  const positions = {
-                    north: { x: intersection.x, y: intersection.y - 25 },
-                    south: { x: intersection.x, y: intersection.y + 25 },
-                    east: { x: intersection.x + 25, y: intersection.y },
-                    west: { x: intersection.x - 25, y: intersection.y }
-                  };
+        return {
+          congestion: totalCongestion,
+          pollution,
+          efficiency,
+          processed: prev.processed + Math.floor(processRate()),
+          accidents: prev.accidents
+        };
+      });
 
-                  const pos = positions[direction];
-                  if (!pos) return null;
+    }, 1000);
 
-                  return (
-                    <g key={direction}>
-                      <circle
-                        cx={pos.x}
-                        cy={pos.y}
-                        r="8"
-                        fill={light.state === 'green' ? '#00ff44' :
-                          light.state === 'yellow' ? '#ffaa00' : '#ff4444'}
-                        stroke="#fff"
-                        strokeWidth="1"
-                        className="traffic-light"
-                      />
-                      <text
-                        x={pos.x}
-                        y={pos.y + 3}
-                        textAnchor="middle"
-                        fontSize="8"
-                        fill="white"
-                        fontWeight="bold"
-                      >
-                        {light.timer}
-                      </text>
-                    </g>
-                  );
-                })}
+    return () => clearInterval(loopRef.current);
+  }, [algorithm, intersections, isGameOver]);
 
-                {/* Congestion indicator */}
-                {intersection.congestion > 5 && (
-                  <circle
-                    cx={intersection.x}
-                    cy={intersection.y}
-                    r={`${15 + intersection.congestion * 2}`}
-                    fill="none"
-                    stroke="#ff4444"
-                    strokeWidth="2"
-                    opacity="0.6"
-                    className="congestion-ring"
-                  />
-                )}
-              </g>
-            ))}
-          </svg>
-        </div>
+  /* ===================== SUCCESS ===================== */
+  useEffect(() => {
+    if (stats.efficiency > 85 && stats.processed > 150) {
+      endGame(true);
+    }
+  }, [stats]);
 
-        {/* Network controls */}
-        <div className="network-controls">
-          <div className="control-panel">
-            <h4>🎛️ Traffic Control</h4>
-
-            {/* Algorithm selection */}
-            <div className="algorithm-selector">
-              <label>Active Algorithm:</label>
-              <div className="algorithm-buttons">
-                {algorithms.map(algorithm => (
-
-                  <button
-                    key={algorithm.id}
-                    className={`algo-btn ${algorithm.active ? 'active' : ''}`}
-                    onClick={() => setAlgorithms(prev =>
-                      prev.map(a => ({ ...a, active: a.id === algorithm.id }))
-                    )}
-                  >
-                    <div className="algo-name">{algorithm.name}</div>
-                    <div className="algo-efficiency">{algorithm.efficiency}%</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Emergency controls */}
-            <div className="emergency-controls">
-              <button
-                className="emergency-btn"
-                onClick={() => setGameState(prev => ({ ...prev, emergencyMode: !prev.emergencyMode }))}
-              >
-                🚨 Emergency Mode
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderTrafficStats = () => (
-    <div className="traffic-stats">
-      <h4>📊 Traffic Statistics</h4>
-      <div className="stats-grid">
-        <div className="stat-item">
-          <span className="stat-label">Congestion Level:</span>
-          <span className={`stat-value ${gameState.congestionLevel > 15 ? 'warning' : 'normal'}`}>
-            {gameState.congestionLevel}%
-          </span>
-        </div>
-        <div className="stat-item">
-          <span className="stat-label">System Efficiency:</span>
-          <span className={`stat-value ${gameState.systemEfficiency > 70 ? 'success' : 'danger'}`}>
-            {gameState.systemEfficiency}%
-          </span>
-        </div>
-        <div className="stat-item">
-          <span className="stat-label">Pollution Level:</span>
-          <span className={`stat-value ${gameState.pollutionLevel > 50 ? 'warning' : 'normal'}`}>
-            {gameState.pollutionLevel}%
-          </span>
-        </div>
-        <div className="stat-item">
-          <span className="stat-label">Average Speed:</span>
-          <span className="stat-value">{trafficStats.averageSpeed} km/h</span>
-        </div>
-        <div className="stat-item">
-          <span className="stat-label">Vehicles Processed:</span>
-          <span className="stat-value">{trafficStats.vehiclesProcessed}</span>
-        </div>
-        <div className="stat-item">
-          <span className="stat-label">Peak Hour:</span>
-          <span className={`stat-value ${trafficStats.peakHour ? 'warning' : 'normal'}`}>
-            {trafficStats.peakHour ? 'YES' : 'NO'}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderOptimizationPanel = () => (
-    <div className="optimization-panel">
-      <h4>💡 Optimization Suggestions</h4>
-      <div className="suggestions-list">
-        {optimizationSuggestions.map((suggestion, index) => (
-          <div key={index} className="suggestion-item">
-            <span className="suggestion-icon">💡</span>
-            <span className="suggestion-text">{suggestion.message}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const instructions = `
-    Welcome to the Smart Traffic Control System! Manage traffic flow across multiple intersections to optimize city transportation.
-    
-    Controls:
-    • Click intersection nodes to view detailed information
-    • Select different traffic algorithms to optimize flow
-    • Activate emergency mode for priority vehicles
-    • Monitor real-time traffic statistics and pollution levels
-    
-    Algorithms:
-    • Fixed Timing: Basic timing cycles (70% efficiency)
-    • Adaptive Control: Adjusts to traffic conditions (85% efficiency)
-    • AI Optimization: Machine learning traffic management (95% efficiency)
-    • Predictive Analysis: Uses time/weather data (90% efficiency)
-    
-    Strategy:
-    • Switch algorithms based on traffic conditions
-    • Monitor congestion levels and pollution
-    • Handle emergency vehicles promptly
-    • Balance efficiency with environmental impact
-  `;
-
-  const objective = `
-    Maintain optimal traffic flow across the city network while minimizing congestion and pollution.
-    Process as many vehicles as possible while keeping average wait times low.
-    Respond effectively to emergency situations and varying traffic conditions.
-    Achieve the highest system efficiency rating possible.
-  `;
-
-  const scoring = `
-    Points awarded for vehicles processed and system efficiency maintained.
-    Bonus points for low congestion and pollution levels.
-    Penalty for accidents and excessive wait times.
-    Emergency response effectiveness adds bonus multipliers.
-    Algorithm optimization increases base efficiency ratings.
-    Time-based challenges during peak hours earn extra points.
-  `;
-
+  /* ===================== RENDER ===================== */
   return (
     <MiniGameBase
+      ref={gameRef}
       title={title}
       timeline={timeline}
       gameId={gameId}
-      instructions={instructions}
-      objective={objective}
-      scoring={scoring}
+      instructions="Manage traffic lights and algorithms to prevent congestion."
+      objective="Maintain traffic efficiency above 85%."
+      scoring="Low congestion earns more points."
       duration={75}
       difficulty={difficulty}
       onComplete={onComplete}
       onClose={onClose}
     >
-      <div className="traffic-control-container">
-        {renderTrafficNetwork()}
-        <div className="stats-panels">
-          {renderTrafficStats()}
-          {renderOptimizationPanel()}
+      <div className="relative w-full h-full p-4">
+
+        {/* END SCREEN */}
+        {isGameOver && (
+          <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center">
+            <h1 className={`text-5xl font-bold mb-4 ${success ? 'text-green-400' : 'text-red-500'}`}>
+              {success ? '🚦 CITY FLOW OPTIMIZED' : '🚧 GRIDLOCK'}
+            </h1>
+            <button
+              onClick={onClose}
+              className="px-6 py-3 bg-gray-800 rounded-lg text-white"
+            >
+              Exit Control Room
+            </button>
+          </div>
+        )}
+
+        {/* NETWORK */}
+        <svg viewBox="0 0 600 400" className="w-full h-[60%] bg-gray-900 rounded-xl">
+          {intersections.map(i => (
+            <g key={i.id}>
+              <circle cx={i.x} cy={i.y} r="18" fill="#222" stroke="#fff" />
+              <text
+                x={i.x}
+                y={i.y + 4}
+                textAnchor="middle"
+                fill="white"
+                fontSize="10"
+              >
+                {congestionOf(i)}
+              </text>
+            </g>
+          ))}
+        </svg>
+
+        {/* CONTROLS */}
+        <div className="mt-6 flex gap-4 justify-center">
+          {['fixed', 'adaptive', 'ai', 'predictive'].map(a => (
+            <button
+              key={a}
+              onClick={() => setAlgorithm(a)}
+              className={`px-4 py-2 rounded ${
+                algorithm === a ? 'bg-green-600' : 'bg-gray-700'
+              }`}
+            >
+              {a.toUpperCase()}
+            </button>
+          ))}
         </div>
+
+        {/* STATS */}
+        <div className="mt-6 grid grid-cols-3 gap-4 text-center">
+          <div>🚗 Congestion: {stats.congestion}</div>
+          <div>🌫 Pollution: {stats.pollution}%</div>
+          <div>⚙ Efficiency: {stats.efficiency}%</div>
+        </div>
+
       </div>
     </MiniGameBase>
   );
 };
-

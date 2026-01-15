@@ -1,8 +1,7 @@
-
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MiniGameBase } from '../EnhancedMiniGameBase';
 
-export const EnhancedBlacksmithForgeSimulator = ({
+export const BlacksmithForgeSimulator = ({
   title = "Master Blacksmith's Forge",
   timeline = "past",
   difficulty = "medium",
@@ -14,10 +13,6 @@ export const EnhancedBlacksmithForgeSimulator = ({
     temperature: 20,
     isHammering: false,
     forgeLevel: 1,
-    metalPieces: [],
-    perfectSequence: 0,
-    currentMold: null,
-    hammerPower: 50,
     forgeParticles: [],
     heatZones: {
       cold: { min: 0, max: 30, color: '#3B82F6' },
@@ -28,416 +23,276 @@ export const EnhancedBlacksmithForgeSimulator = ({
     }
   });
 
-  const [forgeSequence, setForgeSequence] = useState([]);
-  const [achievements, setAchievements] = useState([]);
   const [comboStreak, setComboStreak] = useState(0);
-  const [lastAction, setLastAction] = useState({ type: null, timestamp: 0 });
   const [forgeEfficiency, setForgeEfficiency] = useState(100);
-  const [metalInventory, setMetalInventory] = useState([
-    { type: 'Iron', quantity: 5, quality: 'common' },
-    { type: 'Steel', quantity: 3, quality: 'uncommon' },
-    { type: 'Mithril', quantity: 1, quality: 'rare' }
-  ]);
+  const [perfectCount, setPerfectCount] = useState(0);
+  const [metalInventory, setMetalInventory] = useState([]);
 
-  const gameLoopRef = useRef();
-  const hammerSoundRef = useRef(null);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [success, setSuccess] = useState(false);
 
-  // Enhanced game mechanics
-  const generateForgeSequence = useCallback(() => {
-    const difficulty_multiplier = { easy: 1, medium: 1.5, hard: 2 }[difficulty];
-    const sequenceLength = Math.floor(3 + Math.random() * 3 * difficulty_multiplier);
+  const gameLoopRef = useRef(null);
+  const gameRef = useRef(null);
 
-    return Array.from({ length: sequenceLength }, (_, i) => ({
-      id: i,
-      targetTemp: Math.floor(40 + Math.random() * 40),
-      duration: Math.floor(100 + Math.random() * 50),
-      complexity: Math.floor(1 + Math.random() * 3)
-    }));
-  }, [difficulty]);
-
-  const addForgeParticle = (x, y, type = 'heat') => {
-    const particle = {
-      id: Date.now() + Math.random(),
-      x,
-      y,
-      type,
-      vx: (Math.random() - 0.5) * 2,
-      vy: (Math.random() - 0.5) * 2,
-      life: 1,
-      color: getTemperatureColor(gameState.temperature)
-    };
-
-    setGameState(prev => ({
-      ...prev,
-      forgeParticles: [...prev.forgeParticles, particle]
-    }));
-  };
-
-  const getTemperatureColor = (temp) => {
-    if (temp < 30) return '#3B82F6';
-    if (temp < 50) return '#F59E0B';
-    if (temp < 70) return '#10B981';
-    if (temp < 85) return '#EF4444';
-    return '#DC2626';
-  };
-
-
-  const getTemperatureZone = (temp) => {
-    for (const [zone, data] of Object.entries(gameState.heatZones)) {
-      if (temp >= data.min && temp <= data.max) {
-        return zone;
-      }
+  /* ===================== UTILS ===================== */
+  const getTemperatureZone = temp => {
+    for (const [zone, z] of Object.entries(gameState.heatZones)) {
+      if (temp >= z.min && temp <= z.max) return zone;
     }
     return 'cold';
   };
 
-  const handleHammerStrike = (event) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+  const getTemperatureColor = temp =>
+    gameState.heatZones[getTemperatureZone(temp)]?.color || '#3B82F6';
 
-    setGameState(prev => ({ ...prev, isHammering: true }));
-    setTimeout(() => setGameState(prev => ({ ...prev, isHammering: false })), 150);
+  const addParticle = (x, y) => {
+    setGameState(prev => ({
+      ...prev,
+      forgeParticles: [
+        ...prev.forgeParticles,
+        {
+          id: Date.now() + Math.random(),
+          x,
+          y,
+          life: 1,
+          vx: (Math.random() - 0.5) * 2,
+          vy: -Math.random() * 2,
+          color: getTemperatureColor(prev.temperature)
+        }
+      ]
+    }));
+  };
 
-    addForgeParticle(x + 50, y + 30, 'strike');
+  /* ===================== END STATES ===================== */
+  const triggerSuccess = () => {
+    if (isGameOver) return;
+    setIsGameOver(true);
+    setSuccess(true);
+    clearInterval(gameLoopRef.current);
+
+    gameRef.current?.addPoints(250, 400, 300, 'perfect');
+
+    setTimeout(() => {
+      gameRef.current?.endGame({
+        success: true,
+        reason: 'masterpiece_forged'
+      });
+    }, 2200);
+  };
+
+  const triggerFailure = () => {
+    if (isGameOver) return;
+    setIsGameOver(true);
+    setSuccess(false);
+    clearInterval(gameLoopRef.current);
+
+    gameRef.current?.addPoints(-150, 400, 300, 'miss');
+
+    setTimeout(() => {
+      gameRef.current?.endGame({
+        success: false,
+        reason: 'forge_ruined'
+      });
+    }, 2200);
+  };
+
+  /* ===================== HAMMER ===================== */
+  const handleHammerStrike = e => {
+    if (!gameRef.current?.isGameStarted || isGameOver) return;
 
     const zone = getTemperatureZone(gameState.temperature);
-    const now = Date.now();
-    const timeSinceLastAction = now - lastAction.timestamp;
+    const x = e?.nativeEvent?.offsetX ?? 150;
+    const y = e?.nativeEvent?.offsetY ?? 150;
+
+    setGameState(p => ({ ...p, isHammering: true }));
+    setTimeout(() => setGameState(p => ({ ...p, isHammering: false })), 120);
+
+    addParticle(x + 40, y + 30);
 
     let points = 0;
-    let actionType = 'miss';
+    let type = 'miss';
 
-    if (zone === 'perfect' && timeSinceLastAction < 2000) {
-      points = 10 + (comboStreak * 2);
-      actionType = 'perfect';
-      setComboStreak(prev => prev + 1);
-      addAchievement('perfect_strike', 'Perfect Strike!');
-    } else if (zone === 'hot' || zone === 'warm') {
-      points = 5 + Math.floor(comboStreak * 0.5);
-      actionType = 'good';
+    if (zone === 'perfect') {
+      points = 100 + comboStreak * 10;
+      type = 'perfect';
+      setComboStreak(c => c + 1);
+      setPerfectCount(c => {
+        const next = c + 1;
+        if (next >= 8) triggerSuccess();
+        return next;
+      });
+      setMetalInventory(m => [{ type: 'Masterwork', quality: 'rare' }, ...m.slice(0, 3)]);
+    } 
+    else if (zone === 'warm' || zone === 'hot') {
+      points = 50;
+      type = 'good';
       setComboStreak(0);
-    } else if (zone === 'critical') {
-      points = -5;
-      actionType = 'overheat';
-      setForgeEfficiency(prev => Math.max(0, prev - 10));
-      addAchievement('disaster', 'Forge Disaster!');
-    } else {
-      actionType = 'miss';
+    } 
+    else if (zone === 'critical') {
+      points = -50;
+      type = 'miss';
+      setComboStreak(0);
+      setForgeEfficiency(e => {
+        const next = Math.max(0, e - 15);
+        if (next <= 0) triggerFailure();
+        return next;
+      });
+    } 
+    else {
       setComboStreak(0);
     }
 
-    setLastAction({ type: actionType, timestamp: now });
-
-    // Visual feedback
-    if (actionType === 'perfect') {
-      addForgeParticle(x, y, 'perfect');
-      playHammerSound('perfect');
-    } else if (actionType === 'overheat') {
-      addForgeParticle(x, y, 'disaster');
-      playHammerSound('disaster');
-    }
-
-    return { points, actionType, x, y };
+    gameRef.current?.addPoints(points, x, y, type);
   };
 
-  const playHammerSound = (type) => {
-    // Placeholder for sound effects
-    console.log(`Playing ${type} hammer sound`);
-  };
-
-  const addAchievement = (id, title) => {
-    if (!achievements.find(a => a.id === id)) {
-      setAchievements(prev => [...prev, { id, title, timestamp: Date.now() }]);
-    }
-  };
-
-  const createMetalPiece = () => {
-    const quality_weights = {
-      easy: { common: 80, uncommon: 18, rare: 2 },
-      medium: { common: 60, uncommon: 30, rare: 10 },
-      hard: { common: 40, uncommon: 40, rare: 20 }
-    };
-
-    const weights = quality_weights[difficulty];
-    const rand = Math.random() * 100;
-
-    let quality = 'common';
-    if (rand < weights.rare) quality = 'rare';
-    else if (rand < weights.rare + weights.uncommon) quality = 'uncommon';
-
-    const metal_types = ['Iron', 'Steel', 'Mithril', 'Adamantite', 'Orichalcum'];
-    const metal_type = metal_types[Math.floor(Math.random() * metal_types.length)];
-
-    return {
-      id: Date.now() + Math.random(),
-      type: metal_type,
-      quality,
-      temperature: gameState.temperature,
-      perfection: Math.abs(gameState.temperature - 60) < 10 ? 'perfect' : 'good',
-      forged_at: new Date().toLocaleTimeString()
-    };
-  };
-
-  // Main game loop
+  /* ===================== LOOP ===================== */
   useEffect(() => {
     gameLoopRef.current = setInterval(() => {
+      if (isGameOver) return;
+
       setGameState(prev => {
-        // Natural cooling
-        let newTemp = Math.max(10, prev.temperature - 1);
+        const cooled = Math.max(10, prev.temperature - 0.4);
 
-        // Temperature fluctuations
-        if (Math.random() < 0.3) {
-          newTemp += Math.floor((Math.random() - 0.5) * 6);
-        }
-
-        // Auto-heat if forge level is high
-        if (prev.forgeLevel > 1 && Math.random() < 0.2) {
-          newTemp += prev.forgeLevel * 0.5;
-        }
-
-        newTemp = Math.max(0, Math.min(100, newTemp));
-
-        // Update particles
-        const updatedParticles = prev.forgeParticles
+        const particles = prev.forgeParticles
           .map(p => ({
             ...p,
             x: p.x + p.vx,
             y: p.y + p.vy,
-            life: p.life - 0.02,
-            vy: p.vy + 0.1
+            life: p.life - 0.04
           }))
           .filter(p => p.life > 0);
 
-        return {
-          ...prev,
-          temperature: newTemp,
-          forgeParticles: updatedParticles
-        };
+        return { ...prev, temperature: cooled, forgeParticles: particles };
       });
-    }, 100);
+    }, 50);
 
     return () => clearInterval(gameLoopRef.current);
-  }, []);
+  }, [isGameOver]);
 
-  const renderForge = () => {
-    const zone = getTemperatureZone(gameState.temperature);
-    const zone_color = gameState.heatZones[zone]?.color || '#3B82F6';
-
-    return (
-      <div className="forge-container">
-        <div className="forge-interface">
-          {/* Temperature Control */}
-          <div className="temp-control-panel">
-            <h3>🔥 Forge Temperature Control</h3>
-            <div className="temp-display-enhanced">
-              <div className="temp-number">{Math.round(gameState.temperature)}°C</div>
-              <div className="temp-bar-container">
-                <div
-                  className="temp-bar-fill"
-                  style={{
-                    width: `${gameState.temperature}%`,
-                    backgroundColor: zone_color
-                  }}
-                />
-                <div className="temp-zones">
-                  {Object.entries(gameState.heatZones).map(([zoneName, data]) => (
-                    <div
-                      key={zoneName}
-                      className={`temp-zone ${zoneName} ${zone === zoneName ? 'active' : ''}`}
-                      style={{
-                        left: `${data.min}%`,
-                        width: `${data.max - data.min}%`,
-                        backgroundColor: data.color
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="temp-zone-label">{zone.toUpperCase()}</div>
-            </div>
-
-            {/* Heat Controls */}
-            <div className="heat-controls">
-              <button
-                className="heat-btn increase"
-                onClick={() => setGameState(prev => ({ ...prev, temperature: Math.min(100, prev.temperature + 5) }))}
-              >
-                + Increase Heat
-              </button>
-              <button
-                className="heat-btn decrease"
-                onClick={() => setGameState(prev => ({ ...prev, temperature: Math.max(0, prev.temperature - 5) }))}
-              >
-                - Cool Down
-              </button>
-              <div className="forge-level">
-                Forge Level: {gameState.forgeLevel}
-                <button onClick={() => setGameState(prev => ({ ...prev, forgeLevel: prev.forgeLevel + 1 }))}>
-                  Upgrade
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Anvil Area */}
-          <div className="anvil-area">
-            <div className="anvil-container">
-              <div className="anvil-base">
-                <div className="anvil-face" />
-                <div className="anvil-horn" />
-              </div>
-
-              {/* Hammer Strike Area */}
-              <button
-                className={`hammer-strike-area ${gameState.isHammering ? 'hammering' : ''}`}
-                onClick={handleHammerStrike}
-                onMouseDown={() => setGameState(prev => ({ ...prev, isHammering: true }))}
-                onMouseUp={() => setGameState(prev => ({ ...prev, isHammering: false }))}
-              >
-                <div className="hammer-emoji">🔨</div>
-                <div className="strike-zone">
-                  {forgeSequence.map((step, index) => (
-                    <div
-                      key={step.id}
-                      className={`forge-step ${index === 0 ? 'current' : ''}`}
-                      style={{
-                        left: `${index * 20}px`,
-                        backgroundColor: getTemperatureColor(step.targetTemp)
-                      }}
-                    >
-                      {index + 1}
-                    </div>
-                  ))}
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Forge Particles */}
-        <div className="forge-particles">
-          {gameState.forgeParticles.map(particle => (
-            <div
-              key={particle.id}
-              className="forge-particle"
-              style={{
-                left: `${particle.x}px`,
-                top: `${particle.y}px`,
-                backgroundColor: particle.color,
-                opacity: particle.life,
-                transform: `scale(${particle.life})`
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Game Stats */}
-        <div className="forge-stats">
-          <div className="stat-item">
-            <span className="stat-label">Combo Streak:</span>
-            <span className="stat-value combo">{comboStreak}</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-label">Efficiency:</span>
-            <span className="stat-value">{forgeEfficiency}%</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-label">Metal Pieces:</span>
-            <span className="stat-value">{gameState.metalPieces.length}</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-label">Perfect Strikes:</span>
-            <span className="stat-value perfect">{achievements.filter(a => a.id === 'perfect_strike').length}</span>
-          </div>
-        </div>
-
-        {/* Metal Inventory */}
-        <div className="metal-inventory">
-          <h4>💎 Forged Metal Inventory</h4>
-          <div className="inventory-grid">
-            {metalInventory.map((metal, index) => (
-              <div key={index} className={`metal-item ${metal.quality}`}>
-                <div className="metal-icon">
-                  {metal.type === 'Iron' && '⛓️'}
-                  {metal.type === 'Steel' && '⚔️'}
-                  {metal.type === 'Mithril' && '💠'}
-                  {metal.type === 'Adamantite' && '💎'}
-                  {metal.type === 'Orichalcum' && '🔮'}
-                </div>
-                <div className="metal-info">
-                  <div className="metal-name">{metal.type}</div>
-                  <div className="metal-quantity">x{metal.quantity}</div>
-                  <div className="metal-quality">{metal.quality}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Achievements */}
-        {achievements.length > 0 && (
-          <div className="achievements-panel">
-            <h4>🏆 Achievements</h4>
-            <div className="achievements-list">
-              {achievements.map(achievement => (
-                <div key={achievement.id} className="achievement-item">
-                  <span className="achievement-icon">🏆</span>
-                  <span className="achievement-text">{achievement.title}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const instructions = `
-    Welcome to the Master Blacksmith's Forge! Your goal is to create perfect metal pieces by striking at the right temperature.
-    
-    Controls:
-    • Use heat controls to manage forge temperature
-    • Strike the anvil when temperature is in the GREEN zone for perfect results
-    • Build combo streaks for bonus points
-    • Avoid the RED zone - it causes disasters!
-    
-    Tips:
-    • Perfect temperature range is 51-70°C
-    • Higher forge levels provide better temperature control
-    • Combo streaks multiply your score
-    • Each metal piece has different properties
-  `;
-
-  const objective = `
-    Create as many high-quality metal pieces as possible within the time limit.
-    Strike when the temperature is in the perfect zone to earn maximum points and build combos.
-    Manage temperature carefully to avoid disasters and maintain high efficiency.
-  `;
-
-  const scoring = `
-    Perfect strikes in the green zone award 10+ points with combo multipliers.
-    Good strikes in yellow zones award 5+ points.
-    Overheating in the red zone causes penalties and reduces efficiency.
-    Build combo streaks for exponential score increases.
-    Create rare metal pieces for bonus points.
-  `;
+  const zone = getTemperatureZone(gameState.temperature);
+  const zoneColor = getTemperatureColor(gameState.temperature);
 
   return (
     <MiniGameBase
+      ref={gameRef}
       title={title}
       timeline={timeline}
       gameId={gameId}
-      instructions={instructions}
-      objective={objective}
-      scoring={scoring}
+      instructions="Control the forge temperature and strike at perfect heat to craft a masterpiece."
+      objective="Forge high-quality items without destroying the forge."
+      scoring="Perfect: +100 · Good: +50 · Overheat: −50"
       duration={60}
       difficulty={difficulty}
       onComplete={onComplete}
       onClose={onClose}
     >
-      {renderForge()}
+      <div className="relative w-full h-full p-4">
+
+        {/* ===== END OVERLAY ===== */}
+        {isGameOver && (
+          <div className="absolute inset-0 bg-black/85 z-50 flex flex-col items-center justify-center text-center">
+            <h1 className={`text-5xl font-extrabold mb-4 animate-pulse ${success ? 'text-green-400' : 'text-red-500'}`}>
+              {success ? '⚒️ MASTERPIECE FORGED' : '🔥 FORGE DESTROYED'}
+            </h1>
+            <p className="text-gray-300 mb-6 max-w-md">
+              {success
+                ? 'The blade sings with perfection. Your name will be remembered.'
+                : 'The forge collapses under reckless heat.'}
+            </p>
+            <button
+              onClick={onClose}
+              className={`px-6 py-3 rounded-lg font-bold ${success ? 'bg-green-600' : 'bg-red-600'}`}
+            >
+              Exit Timeline
+            </button>
+          </div>
+        )}
+
+        {/* ===== FORGE UI ===== */}
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Temperature Panel */}
+          <div className="bg-gray-900 rounded-xl p-6 border border-gray-700">
+            <div className="text-center text-4xl font-mono mb-2" style={{ color: zoneColor }}>
+              {Math.round(gameState.temperature)}°C
+            </div>
+
+            <div className="h-6 bg-gray-800 rounded-full overflow-hidden mb-2">
+              <div className="h-full transition-all" style={{ width: `${gameState.temperature}%`, background: zoneColor }} />
+            </div>
+
+            <div className="text-center text-sm uppercase text-gray-400 mb-4">
+              Zone: <span style={{ color: zoneColor }}>{zone}</span>
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                disabled={isGameOver}
+                onClick={() => setGameState(p => ({ ...p, temperature: Math.min(100, p.temperature + 15) }))}
+                className="flex-1 py-3 bg-red-600 rounded font-bold text-white"
+              >
+                Stoke Fire
+              </button>
+              <button
+                disabled={isGameOver}
+                onClick={() => setGameState(p => ({ ...p, temperature: Math.max(0, p.temperature - 10) }))}
+                className="flex-1 py-3 bg-blue-600 rounded font-bold text-white"
+              >
+                Cool Down
+              </button>
+            </div>
+
+            <div className="mt-4 text-sm text-gray-300">
+              Efficiency: <span className={forgeEfficiency > 40 ? 'text-green-400' : 'text-red-400'}>
+                {forgeEfficiency}%
+              </span>
+            </div>
+          </div>
+
+          {/* Anvil */}
+          <div className="bg-gray-900 rounded-xl p-6 border border-gray-700 relative overflow-hidden">
+            {gameState.forgeParticles.map(p => (
+              <div
+                key={p.id}
+                className="absolute w-2 h-2 rounded-full"
+                style={{
+                  left: p.x,
+                  top: p.y,
+                  background: p.color,
+                  opacity: p.life
+                }}
+              />
+            ))}
+
+            <button
+              disabled={isGameOver}
+              onClick={handleHammerStrike}
+              className={`w-full h-64 rounded-xl border-2 border-dashed border-gray-600 flex flex-col items-center justify-center transition-all
+                ${gameState.isHammering ? 'bg-gray-700' : 'bg-gray-800 hover:bg-gray-700'}`}
+            >
+              <div className="text-6xl mb-4">{gameState.isHammering ? '💥' : '🔨'}</div>
+              <div className="font-bold text-white">STRIKE</div>
+              {zone === 'perfect' && (
+                <div className="absolute top-4 right-4 text-green-400 font-bold animate-pulse">
+                  PERFECT HEAT
+                </div>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Inventory */}
+        <div className="mt-6">
+          <div className="text-gray-400 mb-2">Recent Forgings</div>
+          <div className="flex gap-4">
+            {metalInventory.map((m, i) => (
+              <div key={i} className="bg-black/40 px-4 py-2 rounded border border-purple-500">
+                {m.type}
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
     </MiniGameBase>
   );
 };
-

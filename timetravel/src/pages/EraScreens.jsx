@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+
 import { TopNavBar } from '../components/TopNavBar';
 import { ParticleBackground } from '../components/Effects';
 import { NeonButton, HUDStat, MissionCard } from '../components/UI';
@@ -10,6 +10,7 @@ import { miniGameMetadata, getMiniGameComponent } from '../components/minigames'
 import EventManager from '../data/randomEvents';
 
 const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => {
+  const location = useLocation();
   const navigate = useNavigate();
   const {
     credits,
@@ -23,25 +24,37 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
     triggerRandomEvent,
     resolveEvent,
     closeEvent,
-    startMiniGame // Added: Destructure startMiniGame from store
+    startMiniGame,
+    refreshGameState,
   } = useGameStore();
 
   const [selectedAction, setSelectedAction] = useState(null);
-  const [selectedMiniGame, setSelectedMiniGame] = useState(null);
-  const [isMiniGameOpen, setIsMiniGameOpen] = useState(false);
-  const [showMiniGames, setShowMiniGames] = useState(false);
+  const [selectedMiniGame, setSelectedMiniGame] = useState(location.state?.autoStartGameId || null);
+  const [isMiniGameOpen, setIsMiniGameOpen] = useState(!!location.state?.autoStartGameId);
+  const [showMiniGames, setShowMiniGames] = useState(location.state?.showGames || false);
   const [eventManager] = useState(() => new EventManager(useGameStore));
+
+  // Refresh game state when component mounts or era changes
+  useEffect(() => {
+    const refresh = async () => {
+      await refreshGameState();
+    };
+    refresh();
+  }, [era]);
 
   // Get mini-games for this timeline
   const availableMiniGames = miniGameMetadata[era] || [];
 
   // Handle mini-game completion
-  const handleMiniGameComplete = (timeline, gameId, score, rewards) => {
+  const handleMiniGameComplete = async (timeline, gameId, score, rewards) => {
     console.log(`Mini-game completed: ${gameId} in ${timeline}`, { score, rewards });
 
     setIsMiniGameOpen(false);
     setSelectedMiniGame(null);
-    // The game store's completeMiniGame method handles the state updates
+    
+    // Refresh to get updated credits from server
+    const { refreshGameState } = useGameStore.getState();
+    await refreshGameState();
   };
 
   // Handle Mission Acceptance
@@ -302,8 +315,18 @@ const EraScreen = ({ era, title, icon, bgGradient, missions, buildActions }) => 
                     variant="accent"
                     size="lg"
                     className="w-full"
-                    onClick={() => {
-                      setSelectedAction(null);
+                    onClick={async () => {
+                      if (credits < selectedAction.cost) {
+                        alert("Not enough credits!");
+                        return;
+                      }
+                      const { executeBuildAction, refreshGameState } = useGameStore.getState();
+                      const success = await executeBuildAction(selectedAction);
+                      if (success) {
+                        await refreshGameState();
+                        alert(`Action Executed: ${selectedAction.title}`);
+                        setSelectedAction(null);
+                      }
                     }}
                   >
                     EXECUTE ACTION

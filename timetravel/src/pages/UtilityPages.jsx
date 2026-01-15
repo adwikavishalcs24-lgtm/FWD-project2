@@ -19,6 +19,8 @@ export const MissionsPage = () => {
       reward: 1000,
       difficulty: 'Medium',
       requirements: 'Influence: 50',
+      era: 'past',
+      gameId: 'clockmaker'
     },
     {
       id: 2,
@@ -27,6 +29,8 @@ export const MissionsPage = () => {
       reward: 1500,
       difficulty: 'Hard',
       requirements: 'Energy: 200',
+      era: 'past',
+      gameId: 'blacksmith'
     },
     {
       id: 3,
@@ -35,6 +39,8 @@ export const MissionsPage = () => {
       reward: 2000,
       difficulty: 'Extreme',
       requirements: 'Stability: 75%',
+      era: 'future',
+      gameId: 'rift'
     },
     {
       id: 4,
@@ -43,6 +49,8 @@ export const MissionsPage = () => {
       reward: 800,
       difficulty: 'Easy',
       requirements: 'Technology: 100',
+      era: 'present',
+      gameId: 'traffic'
     },
     {
       id: 5,
@@ -51,6 +59,8 @@ export const MissionsPage = () => {
       reward: 3000,
       difficulty: 'Extreme',
       requirements: 'Score: 50000',
+      era: 'future',
+      gameId: 'defense'
     },
   ];
 
@@ -86,26 +96,24 @@ export const MissionsPage = () => {
                 key={mission.id}
                 whileHover={{ scale: 1.02 }}
                 onClick={() => setSelectedMission(mission)}
-                className={`glass p-4 rounded-lg text-left w-full border-l-4 transition-all ${
-                  selectedMission?.id === mission.id
-                    ? 'border-accent bg-accent/10 neon-glow-accent'
-                    : 'border-primary/30'
-                }`}
+                className={`glass p-4 rounded-lg text-left w-full border-l-4 transition-all ${selectedMission?.id === mission.id
+                  ? 'border-accent bg-accent/10 neon-glow-accent'
+                  : 'border-primary/30'
+                  }`}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
                     <h3 className="font-title text-accent text-lg">{mission.title}</h3>
                     <p className="text-xs text-gray-400 mt-1">{mission.description}</p>
                   </div>
-                  <span className={`text-xs font-bold px-2 py-1 rounded ${
-                    mission.difficulty === 'Easy'
-                      ? 'bg-success/20 text-success'
-                      : mission.difficulty === 'Medium'
+                  <span className={`text-xs font-bold px-2 py-1 rounded ${mission.difficulty === 'Easy'
+                    ? 'bg-success/20 text-success'
+                    : mission.difficulty === 'Medium'
                       ? 'bg-secondary/20 text-secondary'
                       : mission.difficulty === 'Hard'
-                      ? 'bg-danger/20 text-danger'
-                      : 'bg-primary/20 text-primary'
-                  }`}>
+                        ? 'bg-danger/20 text-danger'
+                        : 'bg-primary/20 text-primary'
+                    }`}>
                     {mission.difficulty}
                   </span>
                 </div>
@@ -161,8 +169,13 @@ export const MissionsPage = () => {
                   className="w-full"
                   disabled={completedMissions.includes(selectedMission.id)}
                   onClick={() => {
-                    if (!completedMissions.includes(selectedMission.id)) {
-                      completeMission(selectedMission.id);
+                    if (!completedMissions.includes(selectedMission.id) && selectedMission.era) {
+                      navigate(`/${selectedMission.era}`, {
+                        state: {
+                          showGames: true,
+                          autoStartGameId: selectedMission.gameId
+                        }
+                      });
                     }
                   }}
                 >
@@ -183,9 +196,9 @@ export const MissionsPage = () => {
         <NeonButton
           variant="outline"
           size="lg"
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate('/present', { state: { showGames: true } })}
         >
-          🏠 RETURN TO DASHBOARD
+          🎮 PLAY MINI GAMES
         </NeonButton>
       </div>
     </div>
@@ -249,9 +262,8 @@ export const LeaderboardPage = () => {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.05 }}
-                  className={`border-b border-accent/10 transition-all ${
-                    entry.name === username ? 'bg-accent/10' : 'hover:bg-accent/5'
-                  }`}
+                  className={`border-b border-accent/10 transition-all ${entry.name === username ? 'bg-accent/10' : 'hover:bg-accent/5'
+                    }`}
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">

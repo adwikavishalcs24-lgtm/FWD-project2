@@ -8,7 +8,8 @@ export { AncientClockmakerAlignment } from './past/AncientClockmakerAlignment';
 export { TelegraphMorseDecoder } from './past/TelegraphMorseDecoder';
 
 // Present Timeline Games (Modern Era)
-export { TrafficSignalController } from './present/TrafficSignalController';
+// src/components/minigames/index.js
+export { EnhancedTrafficSignalController } from './present/TrafficSignalController';
 export { StockMarketDecisionGame } from './present/StockMarketDecisionGame';
 export { EnergyGridBalancer } from './present/EnergyGridBalancer';
 

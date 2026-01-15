@@ -34,16 +34,17 @@ export const TimeMachine = () => {
     return status === 'unlocked' && credits >= upgrade.cost;
   };
 
-  const handlePurchase = (upgrade) => {
+  const handlePurchase = async (upgrade) => {
     if (canPurchase(upgrade)) {
-      addCredits(-upgrade.cost);
-      purchaseUpgrade(upgrade.id);
-      setSelectedUpgrade(null);
+      const success = await purchaseUpgrade(upgrade.id, upgrade.cost);
+      if (success) {
+        setSelectedUpgrade(null);
+      }
     }
   };
 
-  const filteredUpgrades = activeCategory === 'all' 
-    ? timeMachineUpgrades 
+  const filteredUpgrades = activeCategory === 'all'
+    ? timeMachineUpgrades
     : timeMachineUpgrades.filter(u => u.category === activeCategory);
 
   const machineStats = {
@@ -108,11 +109,10 @@ export const TimeMachine = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setActiveCategory(cat.id)}
-              className={`px-4 py-2 rounded-lg font-title text-sm transition-all ${
-                activeCategory === cat.id
+              className={`px-4 py-2 rounded-lg font-title text-sm transition-all ${activeCategory === cat.id
                   ? 'bg-accent text-dark neon-glow-accent'
                   : 'glass text-gray-400 hover:text-accent'
-              }`}
+                }`}
             >
               {cat.icon} {cat.name}
             </motion.button>
@@ -149,13 +149,12 @@ export const TimeMachine = () => {
                           scale: [1, 1.1, 1],
                         }}
                         transition={{ duration: 2, repeat: Infinity }}
-                        className={`text-6xl p-4 rounded-full ${
-                          getUpgradeStatus(selectedUpgrade) === 'purchased'
+                        className={`text-6xl p-4 rounded-full ${getUpgradeStatus(selectedUpgrade) === 'purchased'
                             ? 'bg-success/20 neon-glow-success'
                             : getUpgradeStatus(selectedUpgrade) === 'unlocked'
-                            ? 'bg-accent/20 neon-glow-accent'
-                            : 'bg-gray-700/20'
-                        }`}
+                              ? 'bg-accent/20 neon-glow-accent'
+                              : 'bg-gray-700/20'
+                          }`}
                       >
                         {selectedUpgrade.icon}
                       </motion.div>
@@ -215,9 +214,8 @@ export const TimeMachine = () => {
                             return (
                               <div
                                 key={reqId}
-                                className={`text-xs p-2 rounded ${
-                                  isMet ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'
-                                }`}
+                                className={`text-xs p-2 rounded ${isMet ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'
+                                  }`}
                               >
                                 {isMet ? '✓' : '✗'} {reqUpgrade?.name || reqId}
                               </div>
@@ -233,8 +231,8 @@ export const TimeMachine = () => {
                         getUpgradeStatus(selectedUpgrade) === 'purchased'
                           ? 'success'
                           : canPurchase(selectedUpgrade)
-                          ? 'accent'
-                          : 'outline'
+                            ? 'accent'
+                            : 'outline'
                       }
                       size="lg"
                       onClick={() => handlePurchase(selectedUpgrade)}
@@ -244,10 +242,10 @@ export const TimeMachine = () => {
                       {getUpgradeStatus(selectedUpgrade) === 'purchased'
                         ? '✓ INSTALLED'
                         : getUpgradeStatus(selectedUpgrade) === 'locked'
-                        ? '🔒 LOCKED'
-                        : credits >= selectedUpgrade.cost
-                        ? '⚡ INSTALL'
-                        : '💰 INSUFFICIENT CREDITS'}
+                          ? '🔒 LOCKED'
+                          : credits >= selectedUpgrade.cost
+                            ? '⚡ INSTALL'
+                            : '💰 INSUFFICIENT CREDITS'}
                     </NeonButton>
                   </motion.div>
                 ) : (
@@ -343,13 +341,12 @@ export const TimeMachine = () => {
                       onHoverStart={() => setHoveredNode(upgrade.id)}
                       onHoverEnd={() => setHoveredNode(null)}
                       onClick={() => setSelectedUpgrade(upgrade)}
-                      className={`relative p-4 rounded-lg transition-all ${
-                        status === 'purchased'
+                      className={`relative p-4 rounded-lg transition-all ${status === 'purchased'
                           ? 'bg-success/20 neon-glow-success border-2 border-success'
                           : status === 'unlocked'
-                          ? 'bg-accent/20 neon-glow-accent border-2 border-accent'
-                          : 'bg-gray-800/30 border-2 border-gray-700'
-                      } ${selectedUpgrade?.id === upgrade.id ? 'ring-4 ring-secondary' : ''}`}
+                            ? 'bg-accent/20 neon-glow-accent border-2 border-accent'
+                            : 'bg-gray-800/30 border-2 border-gray-700'
+                        } ${selectedUpgrade?.id === upgrade.id ? 'ring-4 ring-secondary' : ''}`}
                     >
                       {/* Glitch effect for locked */}
                       {status === 'locked' && (

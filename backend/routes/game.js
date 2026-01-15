@@ -177,10 +177,16 @@ router.put('/session',
         });
       }
 
+      // Parse game_state for response
+      const gameState = typeof updatedSession.game_state === 'string' 
+        ? JSON.parse(updatedSession.game_state) 
+        : updatedSession.game_state;
+
       res.json({
         message: 'Session updated successfully',
         session: {
           id: updatedSession.id,
+          gameState,
           credits: updatedSession.credits,
           energy: updatedSession.energy,
           max_energy: updatedSession.max_energy,
@@ -192,7 +198,8 @@ router.put('/session',
           time_played_seconds: updatedSession.time_played_seconds,
           total_mini_games_played: updatedSession.total_mini_games_played,
           paradox_level: updatedSession.paradox_level,
-          score: updatedSession.score
+          score: updatedSession.score,
+          updated_at: updatedSession.updated_at
         }
       });
 

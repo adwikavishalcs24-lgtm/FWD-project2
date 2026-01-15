@@ -20,7 +20,7 @@ export const useGameStore = create((set, get) => ({
 
   // Current location
   currentEra: 'dashboard', // dashboard, past, present, future
-  
+
   // Game state
   isGameOver: false,
   hasEnded: false,
@@ -92,25 +92,28 @@ export const useGameStore = create((set, get) => ({
   onlineUsers: [],
 
   // ========== AUTHENTICATION ACTIONS ==========
-  
+
   // Initialize authentication from stored token
   initializeAuth: async () => {
     try {
       const token = tokenUtils.getToken();
       const userData = tokenUtils.getUserData();
-      
+
       if (token && tokenUtils.isTokenValid() && userData) {
-        set({ 
-          isAuthenticated: true, 
+        set({
+          isAuthenticated: true,
           currentUser: userData,
           username: userData.username || 'Agent Timeline'
         });
-        
+
         // Verify token with server
         try {
           const user = await authAPI.getCurrentUser();
           set({ currentUser: user, isAuthenticated: true });
           tokenUtils.saveToken(token, user);
+
+          // Load game session to ensure persistence
+          await get().loadGameSession();
         } catch (error) {
           console.error('Token verification failed:', error);
           tokenUtils.clearToken();
@@ -128,23 +131,23 @@ export const useGameStore = create((set, get) => ({
     try {
       const response = await authAPI.register(userData);
       const { token, user } = response;
-      
+
       tokenUtils.saveToken(token, user);
-      set({ 
-        isAuthenticated: true, 
-        currentUser: user, 
+      set({
+        isAuthenticated: true,
+        currentUser: user,
         username: user.username,
-        authLoading: false 
+        authLoading: false
       });
-      
+
       // Create initial game session
       await get().createGameSession();
-      
+
       return response;
     } catch (error) {
-      set({ 
-        authLoading: false, 
-        authError: error.message 
+      set({
+        authLoading: false,
+        authError: error.message
       });
       throw error;
     }
@@ -156,23 +159,23 @@ export const useGameStore = create((set, get) => ({
     try {
       const response = await authAPI.login(credentials);
       const { token, user } = response;
-      
+
       tokenUtils.saveToken(token, user);
-      set({ 
-        isAuthenticated: true, 
-        currentUser: user, 
+      set({
+        isAuthenticated: true,
+        currentUser: user,
         username: user.username,
-        authLoading: false 
+        authLoading: false
       });
-      
+
       // Load existing game session or create new one
       await get().loadGameSession();
-      
+
       return response;
     } catch (error) {
-      set({ 
-        authLoading: false, 
-        authError: error.message 
+      set({
+        authLoading: false,
+        authError: error.message
       });
       throw error;
     }
@@ -199,7 +202,7 @@ export const useGameStore = create((set, get) => ({
   },
 
   // ========== GAME SESSION ACTIONS ==========
-  
+
   // Create new game session
   createGameSession: async (sessionData = {}) => {
     set({ gameLoading: true });
@@ -211,16 +214,16 @@ export const useGameStore = create((set, get) => ({
         initialStability: get().stability,
         ...sessionData
       };
-      
+
       const response = await gameAPI.createSession(gameData);
-      set({ 
+      set({
         gameSession: response.session,
-        gameLoading: false 
+        gameLoading: false
       });
-      
+
       // Sync local state with server data
       get().syncGameState(response.session);
-      
+
       return response;
     } catch (error) {
       set({ gameLoading: false });
@@ -235,9 +238,9 @@ export const useGameStore = create((set, get) => ({
     try {
       const response = await gameAPI.getCurrentSession();
       if (response.session) {
-        set({ 
+        set({
           gameSession: response.session,
-          gameLoading: false 
+          gameLoading: false
         });
         get().syncGameState(response.session);
       } else {
@@ -252,18 +255,70 @@ export const useGameStore = create((set, get) => ({
     }
   },
 
+  // Refresh game state from server
+  refreshGameState: async () => {
+    try {
+      const token = tokenUtils.getToken();
+      if (!token) return;
+      
+      const response = await gameAPI.getCurrentSession();
+      if (response.session) {
+        console.log('Refreshing credits:', response.session.credits);
+        set({
+          credits: response.session.credits,
+          energy: response.session.energy,
+          stability: response.session.stability,
+          score: response.session.score,
+        });
+      }
+    } catch (error) {
+      console.error('Refresh game state error:', error);
+    }
+  },
+
   // Sync local state with server game data
   syncGameState: (sessionData) => {
     if (!sessionData) return;
-    
+
+    console.log('Syncing game state from server:', sessionData);
+
+    // Helper to get resources from various possible locations
+    const getResources = () => {
+      if (sessionData.resources) {
+        return typeof sessionData.resources === 'string' ? JSON.parse(sessionData.resources) : sessionData.resources;
+      }
+      if (sessionData.gameState && sessionData.gameState.resources) {
+        return sessionData.gameState.resources;
+      }
+      return get().resources;
+    };
+
+    // Helper to get completed missions
+    const getCompletedMissions = () => {
+      if (sessionData.gameState && sessionData.gameState.completedMissions) {
+        return sessionData.gameState.completedMissions;
+      }
+      return get().completedMissions;
+    };
+
+    // Helper to get purchased upgrades
+    const getPurchasedUpgrades = () => {
+      if (sessionData.gameState && sessionData.gameState.purchasedUpgrades) {
+        return sessionData.gameState.purchasedUpgrades;
+      }
+      return get().purchasedUpgrades;
+    };
+
     set({
       username: sessionData.username || get().username,
-      credits: sessionData.credits || get().credits,
-      energy: sessionData.energy || get().energy,
-      stability: sessionData.stability || get().stability,
-      score: sessionData.score || get().score,
+      credits: sessionData.credits !== undefined ? sessionData.credits : get().credits,
+      energy: sessionData.energy !== undefined ? sessionData.energy : get().energy,
+      stability: sessionData.stability !== undefined ? sessionData.stability : get().stability,
+      score: sessionData.score !== undefined ? sessionData.score : get().score,
       timePlayedSeconds: sessionData.time_played_seconds || get().timePlayedSeconds,
-      resources: sessionData.resources ? JSON.parse(sessionData.resources) : get().resources,
+      resources: getResources(),
+      completedMissions: getCompletedMissions(),
+      purchasedUpgrades: getPurchasedUpgrades(),
       timelineStability: sessionData.timeline_stability ? JSON.parse(sessionData.timeline_stability) : get().timelineStability
     });
   },
@@ -271,18 +326,36 @@ export const useGameStore = create((set, get) => ({
   // Update game session
   updateGameSession: async (updates) => {
     try {
+      const token = tokenUtils.getToken();
+      if (!token) {
+        console.warn("Skipping session update — no token");
+        return;
+      }
+
+      console.log('Sending updates to server:', updates);
       const response = await gameAPI.updateSession(updates);
+      console.log('Server update response:', response);
       set({ gameSession: response.session });
-      
+
       // Sync local state
       get().syncGameState(response.session);
-      
+
       return response;
     } catch (error) {
       console.error('Update session error:', error);
       throw error;
     }
   },
+  missionsCompleted: {}, // { past: [1,2], present: [], future: [] }
+
+  completeMission: (era, missionId, reward) => set((state) => ({
+    credits: state.credits + reward,
+    missionsCompleted: {
+      ...state.missionsCompleted,
+      [era]: [...(state.missionsCompleted[era] || []), missionId]
+    }
+  })),
+
 
   // End game session
   endGameSession: async () => {
@@ -296,7 +369,7 @@ export const useGameStore = create((set, get) => ({
   },
 
   // ========== MINI-GAME ACTIONS ==========
-  
+
   // Submit mini-game score to server
   submitMiniGameScore: async (timeline, gameId, score, additionalData = {}) => {
     try {
@@ -308,19 +381,19 @@ export const useGameStore = create((set, get) => ({
         attempts: additionalData.attempts || 1,
         additional_data: additionalData
       };
-      
+
       const response = await miniGameAPI.submitScore(scoreData);
-      
+
       // Update local scores
       get().completeMiniGame(timeline, gameId, score, response.rewards || {});
-      
+
       // Update server game session with new data
       await get().updateGameSession({
         credits: get().credits,
         score: get().score,
         total_mini_games_played: get().totalMiniGamesPlayed
       });
-      
+
       return response;
     } catch (error) {
       console.error('Submit score error:', error);
@@ -340,7 +413,7 @@ export const useGameStore = create((set, get) => ({
   },
 
   // ========== LEADERBOARD ACTIONS ==========
-  
+
   // Load all leaderboard data
   loadLeaderboards: async () => {
     try {
@@ -350,7 +423,7 @@ export const useGameStore = create((set, get) => ({
         leaderboardAPI.getTimePlayedLeaderboard(),
         leaderboardAPI.getGlobalStats()
       ]);
-      
+
       set({
         leaderboardData: {
           score: scoreData.leaderboard || [],
@@ -365,7 +438,7 @@ export const useGameStore = create((set, get) => ({
   },
 
   // ========== USER PROFILE ACTIONS ==========
-  
+
   // Load user profile and statistics
   loadUserProfile: async () => {
     try {
@@ -374,7 +447,7 @@ export const useGameStore = create((set, get) => ({
         userAPI.getAchievements(),
         userAPI.getUserStatistics()
       ]);
-      
+
       set({
         currentUser: {
           ...get().currentUser,
@@ -383,7 +456,7 @@ export const useGameStore = create((set, get) => ({
           statistics
         }
       });
-      
+
       return { profile, achievements, statistics };
     } catch (error) {
       console.error('Load profile error:', error);
@@ -400,66 +473,71 @@ export const useGameStore = create((set, get) => ({
     activeMiniGame: gameId,
     miniGameAttempts: get().miniGameAttempts + 1
   }),
-  
 
-  completeMiniGame: (timeline, gameId, score, rewards) => set((state) => {
+
+  completeMiniGame: async (timeline, gameId, score, rewards) => {
+    const state = get();
     const newScores = { ...state.miniGameScores };
     newScores[timeline][gameId] = Math.max(newScores[timeline][gameId], score);
-    
+
     const newCompleted = { ...state.completedMiniGames };
     if (!newCompleted[timeline].includes(gameId)) {
       newCompleted[timeline].push(gameId);
     }
-    
+
+    const missionMapping = { 'clockmaker': 1, 'blacksmith': 2, 'rift': 3, 'traffic': 4, 'defense': 5 };
+    const missionId = missionMapping[gameId];
+    let updatedCompletedMissions = [...state.completedMissions];
+    if (missionId && !updatedCompletedMissions.includes(missionId)) {
+      updatedCompletedMissions.push(missionId);
+    }
+
     const newCredits = state.credits + (rewards?.credits || 0);
     const newEnergy = Math.min(state.maxEnergy, state.energy + (rewards?.energy || 0));
     const newStability = Math.max(0, Math.min(100, state.stability + (rewards?.stability || 0)));
     const newScore = state.score + score;
-    
-    // Update server with new values
-    get().updateGameSession({
-      credits: newCredits,
-      energy: newEnergy,
-      stability: newStability,
-      score: newScore,
-      total_mini_games_played: state.totalMiniGamesPlayed + 1
-    }).catch(console.error);
-    
-    return {
-      activeMiniGame: null,
-      miniGameScores: newScores,
-      completedMiniGames: newCompleted,
-      totalMiniGamesPlayed: state.totalMiniGamesPlayed + 1,
-      credits: newCredits,
-      energy: newEnergy,
-      stability: newStability,
-      coinsPerSecond: state.coinsPerSecond + (rewards?.coinsPerSecond || 0),
-      totalCreditsEarned: state.totalCreditsEarned + (rewards?.credits || 0),
-      score: newScore,
-      resources: {
-        ...state.resources,
-        [timeline]: {
-          ...state.resources[timeline],
-          ...rewards?.resources
-        }
+
+    const newResources = {
+      ...state.resources,
+      [timeline]: {
+        ...state.resources[timeline],
+        ...rewards?.resources
       }
     };
-  }),
-  
+
+    try {
+      await get().updateGameSession({
+        credits: newCredits,
+        energy: newEnergy,
+        stability: newStability,
+        score: newScore,
+        total_mini_games_played: state.totalMiniGamesPlayed + 1,
+        gameState: {
+          resources: newResources,
+          completedMissions: updatedCompletedMissions,
+          miniGameScores: newScores,
+          completedMiniGames: newCompleted
+        }
+      });
+    } catch (error) {
+      console.error('Failed to update mini-game completion:', error);
+    }
+  },
+
   // Random Events Actions
   triggerRandomEvent: (event) => set((state) => ({
     eventActive: true,
     currentEvent: event,
     lastEventTime: Date.now()
   })),
-  
+
   resolveEvent: (eventId, choice) => set((state) => {
     const event = state.randomEvents.find(e => e.id === eventId);
     if (!event) return state;
-    
+
     const resolution = event.resolutions[choice];
     const effects = resolution.effects || {};
-    
+
     return {
       eventActive: false,
       currentEvent: null,
@@ -469,16 +547,16 @@ export const useGameStore = create((set, get) => ({
       paradoxLevel: Math.max(0, state.paradoxLevel + (effects.paradox || 0)),
       timelineStability: {
         ...state.timelineStability,
-        [event.timeline]: Math.max(0, Math.min(100, 
+        [event.timeline]: Math.max(0, Math.min(100,
           state.timelineStability[event.timeline] + (effects.timelineStability || 0)))
       }
     };
   }),
-  
+
   // Timeline-specific stability
   updateTimelineStability: (timeline, amount) => set((state) => {
     const newStability = Math.max(0, Math.min(100, state.timelineStability[timeline] + amount));
-    
+
     // Check for timeline collapse
     if (newStability <= 0) {
       return {
@@ -490,7 +568,7 @@ export const useGameStore = create((set, get) => ({
         stability: 0
       };
     }
-    
+
     return {
       timelineStability: {
         ...state.timelineStability,
@@ -498,22 +576,22 @@ export const useGameStore = create((set, get) => ({
       }
     };
   }),
-  
+
   // Victory/Lose Conditions Check
   checkWinCondition: () => set((state) => {
     const hasMinUpgrades = state.purchasedUpgrades.length >= 3; // At least 1 per timeline
     const hasEnoughCredits = state.credits >= 100000;
     const hasGoodStability = state.stability >= 60;
-    
+
     if (hasEnoughCredits && hasGoodStability && hasMinUpgrades) {
       return { hasEnded: true };
     }
     return {};
   }),
-  
+
   // Actions
   setUsername: (username) => set({ username }),
-  addCredits: (amount) => set((state) => ({ 
+  addCredits: (amount) => set((state) => ({
     credits: Math.max(0, state.credits + amount),
     totalCreditsEarned: state.totalCreditsEarned + Math.max(0, amount)
   })),
@@ -589,15 +667,86 @@ export const useGameStore = create((set, get) => ({
   completeUpgrade: (upgradeId) => set((state) => ({
     purchasedUpgrades: [...state.purchasedUpgrades, upgradeId],
   })),
-  purchaseUpgrade: (upgradeId) => set((state) => ({
-    purchasedUpgrades: [...state.purchasedUpgrades, upgradeId],
-  })),
-  completeMission: (missionId) => set((state) => ({
-    completedMissions: [...state.completedMissions, missionId],
-  })),
+  purchaseUpgrade: async (upgradeId, cost) => {
+    const state = get();
+    if (state.credits < cost) return false;
+
+    const newCredits = state.credits - cost;
+    const newUpgrades = [...state.purchasedUpgrades, upgradeId];
+
+    try {
+      const token = tokenUtils.getToken();
+      if (token) {
+        await get().updateGameSession({
+          credits: newCredits,
+          gameState: { purchasedUpgrades: newUpgrades }
+        });
+      }
+      return true;
+    } catch (e) {
+      console.error('Failed to purchase upgrade:', e);
+      return false;
+    }
+  },
+  completeMission: (missionId) => {
+    set((state) => {
+      const newCompleted = [...state.completedMissions, missionId];
+      const token = tokenUtils.getToken();
+      if (token) {
+        get().updateGameSession({
+          gameState: { completedMissions: newCompleted }
+        });
+      } else {
+        console.warn("No token found, skipping updateGameSession for completeMission.");
+      }
+      return { completedMissions: newCompleted };
+    });
+  },
+  clearActiveMission: () => set({ activeMission: null }),
   addScore: (amount) => set((state) => ({
     score: state.score + amount,
   })),
+  // Build Action Execution
+  executeBuildAction: async (action) => {
+    const state = get();
+    if (state.credits < action.cost) return false;
+
+    const newCredits = state.credits - action.cost;
+    let newStability = state.stability;
+    let newResources = { ...state.resources };
+
+    if (action.effect) {
+      const parts = action.effect.split(' ');
+      const amount = parseInt(parts[0]);
+      const type = parts.slice(1).join(' ').toLowerCase();
+
+      if (type.includes('stability')) {
+        newStability = Math.min(100, newStability + amount);
+      } else if (type.includes('artifacts')) {
+        newResources.past = { ...newResources.past, artifacts: (newResources.past?.artifacts || 0) + amount };
+      } else if (type.includes('technology')) {
+        newResources.present = { ...newResources.present, technology: (newResources.present?.technology || 0) + amount };
+      } else if (type.includes('innovation')) {
+        newResources.future = { ...newResources.future, innovations: (newResources.future?.innovations || 0) + amount };
+      } else if (type.includes('influence')) {
+        const era = state.currentEra === 'dashboard' ? 'present' : state.currentEra;
+        newResources[era] = { ...newResources[era], influence: (newResources[era]?.influence || 0) + amount };
+      }
+    }
+
+    try {
+      await get().updateGameSession({
+        credits: newCredits,
+        stability: newStability,
+        gameState: { resources: newResources }
+      });
+      return true;
+    } catch (err) {
+      console.error("Failed to save build action:", err);
+      return false;
+    }
+  },
+
   addTimePlayedSeconds: (seconds) => set((state) => ({
     timePlayedSeconds: state.timePlayedSeconds + seconds,
   })),

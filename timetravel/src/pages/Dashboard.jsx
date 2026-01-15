@@ -19,9 +19,18 @@ export const Dashboard = () => {
     closeEvent,
     addCredits,
     showEvent,
+    refreshGameState,
   } = useGameStore();
 
   const [activeNewsIndex, setActiveNewsIndex] = useState(0);
+
+  // Refresh game state when dashboard mounts
+  useEffect(() => {
+    const refresh = async () => {
+      await refreshGameState();
+    };
+    refresh();
+  }, []);
 
   const newsItems = [
     { icon: '⚠️', title: 'Temporal Anomaly Detected', desc: '1890s timeline showing instability' },
@@ -84,10 +93,25 @@ export const Dashboard = () => {
     showEvent(randomEvent);
   };
 
-  const handleUpgrade = (upgradeId) => {
-    if (credits >= 1000) {
-      addCredits(-1000);
-      handleRandomEvent();
+  const handleUpgrade = async (upgradeId) => {
+    const upgrade = upgrades.find(u => u.id === upgradeId);
+    if (!upgrade) return;
+
+    if (credits >= upgrade.cost) {
+      const { executeBuildAction, refreshGameState } = useGameStore.getState();
+      const action = {
+        title: upgrade.title,
+        cost: upgrade.cost,
+        effect: upgrade.effect
+      };
+
+      const success = await executeBuildAction(action);
+      if (success) {
+        await refreshGameState();
+        handleRandomEvent();
+      }
+    } else {
+      alert("Not enough credits!");
     }
   };
 
@@ -192,11 +216,10 @@ export const Dashboard = () => {
                   key={idx}
                   animate={{ opacity: activeNewsIndex === idx ? 1 : 0.5 }}
                   transition={{ duration: 0.5 }}
-                  className={`p-3 rounded border-l-4 ${
-                    activeNewsIndex === idx
+                  className={`p-3 rounded border-l-4 ${activeNewsIndex === idx
                       ? 'border-accent bg-accent/10'
                       : 'border-primary/30 bg-primary/5'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">{news.icon}</span>
@@ -214,9 +237,8 @@ export const Dashboard = () => {
                 <button
                   key={idx}
                   onClick={() => setActiveNewsIndex(idx)}
-                  className={`w-2 h-2 rounded-full transition-all ${
-                    activeNewsIndex === idx ? 'bg-accent w-6' : 'bg-gray-600'
-                  }`}
+                  className={`w-2 h-2 rounded-full transition-all ${activeNewsIndex === idx ? 'bg-accent w-6' : 'bg-gray-600'
+                    }`}
                 />
               ))}
             </div>
